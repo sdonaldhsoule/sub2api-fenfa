@@ -4,6 +4,21 @@ import { api } from '../lib/api';
 import { clearToken } from '../lib/auth';
 import type { CheckinHistoryItem, CheckinStatus, SessionUser } from '../types';
 
+function checkinStatusText(status: CheckinStatus | null): string {
+  if (!status) return '-';
+  if (status.checked_in) return '已签到';
+  if (status.grant_status === 'pending') return '处理中';
+  return '未签到';
+}
+
+function renderGrantTag(status: CheckinHistoryItem['grant_status']) {
+  return (
+    <span className={`status-tag ${status}`}>
+      {status === 'success' ? '成功' : status === 'pending' ? '处理中' : '失败'}
+    </span>
+  );
+}
+
 export function CheckinPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -74,8 +89,12 @@ export function CheckinPage() {
 
   if (loading) {
     return (
-      <div className="page">
-        <div className="card">加载中...</div>
+      <div className="page page-center">
+        <div className="card auth-card">
+          <p className="eyebrow">CHECK-IN CONSOLE</p>
+          <h1 className="hero-title">每日签到</h1>
+          <p className="muted">加载中...</p>
+        </div>
       </div>
     );
   }
@@ -83,46 +102,71 @@ export function CheckinPage() {
   return (
     <div className="page">
       <div className="card">
-        <div className="row">
-          <h1>每日签到</h1>
-          <button className="button" onClick={handleLogout}>
-            退出
-          </button>
+        <div className="row topbar">
+          <div>
+            <p className="eyebrow">CHECK-IN CONSOLE</p>
+            <h1 className="hero-title">每日签到</h1>
+            <p className="muted">
+              用户：{user?.username}（sub2api 用户ID: {user?.sub2api_user_id}）
+            </p>
+          </div>
+          <div className="actions">
+            {user?.is_admin && (
+              <Link to="/admin" className="button ghost">
+                后台管理
+              </Link>
+            )}
+            <button className="button" onClick={handleLogout}>
+              退出
+            </button>
+          </div>
         </div>
-        <p className="muted">
-          用户：{user?.username}（sub2api 用户ID: {user?.sub2api_user_id}）
-        </p>
-        {user?.is_admin && (
-          <p className="muted">
-            你是管理员，前往 <Link to="/admin">后台管理</Link>
-          </p>
-        )}
 
         {status && (
-          <div className="panel">
-            <p>业务日：{status.checkin_date}</p>
-            <p>时区：{status.timezone}</p>
-            <p>今日奖励：{status.daily_reward_balance}</p>
-            <p>签到状态：{status.checked_in ? '已签到' : '未签到'}</p>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-label">业务日</div>
+              <div className="stat-value">{status.checkin_date}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">时区</div>
+              <div className="stat-value">{status.timezone}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">今日奖励</div>
+              <div className="stat-value warning">{status.daily_reward_balance}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">签到状态</div>
+              <div className={`stat-value ${status.checked_in ? 'success' : ''}`}>
+                {checkinStatusText(status)}
+              </div>
+            </div>
           </div>
         )}
 
-        <button className="button primary" disabled={!canCheckin} onClick={handleCheckin}>
-          {submitting ? '签到中...' : '立即签到'}
-        </button>
+        <div className="row section-bar">
+          <h2 className="section-title">签到操作</h2>
+          <button className="button primary" disabled={!canCheckin} onClick={handleCheckin}>
+            {submitting ? '签到中...' : '立即签到'}
+          </button>
+        </div>
 
-        {success && <p className="ok">{success}</p>}
-        {error && <p className="error">{error}</p>}
+        {success && <p className="alert success">{success}</p>}
+        {error && <p className="alert error">{error}</p>}
 
-        <h2>签到历史</h2>
+        <h2 className="section-title">签到历史</h2>
         <div className="list">
           {history.length === 0 && <p className="muted">暂无签到记录</p>}
           {history.map((item) => (
             <div key={item.id} className="list-item">
-              <strong>{item.checkin_date}</strong>
-              <span>{item.reward_balance}</span>
-              <span>{item.grant_status}</span>
-              <span>{new Date(item.created_at).toLocaleString()}</span>
+              <div className="stack">
+                <strong>{item.checkin_date}</strong>
+                <span className="muted">奖励 {item.reward_balance}</span>
+              </div>
+              {renderGrantTag(item.grant_status)}
+              <span className="muted">{new Date(item.created_at).toLocaleString()}</span>
+              <span className="muted">{item.grant_error || '发放成功'}</span>
             </div>
           ))}
         </div>
@@ -130,4 +174,3 @@ export function CheckinPage() {
     </div>
   );
 }
-

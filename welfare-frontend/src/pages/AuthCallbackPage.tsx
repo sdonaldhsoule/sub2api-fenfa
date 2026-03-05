@@ -15,6 +15,7 @@ function parseHash(hash: string): Record<string, string> {
 export function AuthCallbackPage() {
   const navigate = useNavigate();
   const [message, setMessage] = useState('正在处理登录回调...');
+  const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     const params = parseHash(window.location.hash);
@@ -23,27 +24,30 @@ export function AuthCallbackPage() {
     const redirect = params.redirect || '/checkin';
 
     if (error) {
+      setIsError(true);
       setMessage(`登录失败：${params.detail || error}`);
       setTimeout(() => navigate('/login', { replace: true }), 1500);
       return;
     }
     if (!token) {
+      setIsError(true);
       setMessage('登录失败：缺少 token');
       setTimeout(() => navigate('/login', { replace: true }), 1500);
       return;
     }
 
     setToken(token);
+    setMessage('登录成功，正在跳转...');
     navigate(redirect, { replace: true });
   }, [navigate]);
 
   return (
-    <div className="page">
-      <div className="card">
-        <h1>登录回调</h1>
-        <p className="muted">{message}</p>
+    <div className="page page-center">
+      <div className="card auth-card">
+        <p className="eyebrow">AUTH GATEWAY</p>
+        <h1 className="hero-title">登录回调</h1>
+        <p className={isError ? 'alert error' : 'alert success'}>{message}</p>
       </div>
     </div>
   );
 }
-

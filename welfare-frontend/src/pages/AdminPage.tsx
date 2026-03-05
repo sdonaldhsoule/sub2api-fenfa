@@ -98,8 +98,12 @@ export function AdminPage() {
 
   if (loading) {
     return (
-      <div className="page">
-        <div className="card">加载中...</div>
+      <div className="page page-center">
+        <div className="card auth-card">
+          <p className="eyebrow">ADMIN CONSOLE</p>
+          <h1 className="hero-title">福利后台</h1>
+          <p className="muted">加载中...</p>
+        </div>
       </div>
     );
   }
@@ -109,7 +113,7 @@ export function AdminPage() {
       <div className="page">
         <div className="card">
           <h1>无权限</h1>
-          <p className="error">{error || '当前账号不是管理员'}</p>
+          <p className="alert error">{error || '当前账号不是管理员'}</p>
           <Link to="/checkin" className="button">
             返回签到页
           </Link>
@@ -121,104 +125,121 @@ export function AdminPage() {
   return (
     <div className="page">
       <div className="card">
-        <div className="row">
-          <h1>福利后台管理</h1>
-          <Link to="/checkin" className="button">
-            返回签到页
-          </Link>
+        <div className="row topbar">
+          <div>
+            <p className="eyebrow">ADMIN CONSOLE</p>
+            <h1 className="hero-title">福利后台管理</h1>
+            <p className="muted">当前管理员：{me.username}</p>
+          </div>
+          <div className="actions">
+            <Link to="/checkin" className="button ghost">
+              返回签到页
+            </Link>
+          </div>
         </div>
 
-        {error && <p className="error">{error}</p>}
-        {message && <p className="ok">{message}</p>}
+        {error && <p className="alert error">{error}</p>}
+        {message && <p className="alert success">{message}</p>}
 
-        <h2>签到配置</h2>
+        <h2 className="section-title">签到配置</h2>
         {settings && (
           <div className="panel">
-            <label className="field">
-              <span>签到开关</span>
-              <input
-                type="checkbox"
-                checked={settings.checkin_enabled}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    checkin_enabled: event.target.checked
-                  })
-                }
-              />
-            </label>
+            <div className="form-grid">
+              <label className="field">
+                <span>签到开关</span>
+                <input
+                  type="checkbox"
+                  checked={settings.checkin_enabled}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      checkin_enabled: event.target.checked
+                    })
+                  }
+                />
+              </label>
 
-            <label className="field">
-              <span>每日奖励余额</span>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={settings.daily_reward_balance}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    daily_reward_balance: Number(event.target.value)
-                  })
-                }
-              />
-            </label>
+              <label className="field">
+                <span>每日奖励余额</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={settings.daily_reward_balance}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      daily_reward_balance: Number(event.target.value)
+                    })
+                  }
+                />
+              </label>
 
-            <label className="field">
-              <span>业务时区</span>
-              <input
-                type="text"
-                value={settings.timezone}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    timezone: event.target.value
-                  })
-                }
-              />
-            </label>
-            <button className="button primary" onClick={saveSettings} disabled={saving}>
-              {saving ? '保存中...' : '保存设置'}
-            </button>
+              <label className="field">
+                <span>业务时区</span>
+                <input
+                  type="text"
+                  value={settings.timezone}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      timezone: event.target.value
+                    })
+                  }
+                />
+              </label>
+            </div>
+            <div className="form-actions">
+              <button className="button primary" onClick={saveSettings} disabled={saving}>
+                {saving ? '保存中...' : '保存设置'}
+              </button>
+            </div>
           </div>
         )}
 
-        <h2>30天签到统计</h2>
+        <h2 className="section-title">30天签到统计</h2>
         {stats && (
           <div className="panel">
-            <p>签到人次：{stats.total_checkins}</p>
-            <p>发放总额：{stats.total_grant_balance}</p>
+            <div className="admin-stats-summary">
+              <span className="chip">签到人次：{stats.total_checkins}</span>
+              <span className="chip">发放总额：{stats.total_grant_balance}</span>
+            </div>
             <div className="list">
               {stats.points.map((point) => (
                 <div key={point.checkinDate} className="list-item">
                   <strong>{point.checkinDate}</strong>
-                  <span>人数: {point.checkinUsers}</span>
-                  <span>发放: {point.grantTotal}</span>
+                  <span className="muted">人数: {point.checkinUsers}</span>
+                  <span className="muted">发放: {point.grantTotal}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <h2>管理员白名单</h2>
+        <h2 className="section-title">管理员白名单</h2>
         <div className="panel">
-          <label className="field">
-            <span>LinuxDo Subject</span>
-            <input value={newSubject} onChange={(event) => setNewSubject(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>备注</span>
-            <input value={newNotes} onChange={(event) => setNewNotes(event.target.value)} />
-          </label>
-          <button className="button" onClick={addWhitelist}>
-            添加白名单
-          </button>
+          <div className="form-grid">
+            <label className="field">
+              <span>LinuxDo Subject</span>
+              <input value={newSubject} onChange={(event) => setNewSubject(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>备注</span>
+              <input value={newNotes} onChange={(event) => setNewNotes(event.target.value)} />
+            </label>
+          </div>
+          <div className="form-actions">
+            <button className="button" onClick={addWhitelist}>
+              添加白名单
+            </button>
+          </div>
 
           <div className="list">
             {whitelist.map((item) => (
               <div key={item.id} className="list-item">
                 <strong>{item.linuxdoSubject}</strong>
-                <span>{item.notes || '-'}</span>
+                <span className="muted">{item.notes || '-'}</span>
+                <span className="muted">{new Date(item.createdAt).toLocaleString()}</span>
                 <button className="button danger" onClick={() => removeWhitelist(item.id)}>
                   删除
                 </button>
@@ -230,4 +251,3 @@ export function AdminPage() {
     </div>
   );
 }
-
