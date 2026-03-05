@@ -3,6 +3,7 @@ export interface SessionUser {
   linuxdoSubject: string;
   syntheticEmail: string;
   username: string;
+  avatarUrl: string | null;
 }
 
 export interface WelfareSettings {

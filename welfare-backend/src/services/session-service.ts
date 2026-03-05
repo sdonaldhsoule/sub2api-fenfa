@@ -7,6 +7,7 @@ interface SessionClaims {
   subid: string;
   semail: string;
   uname: string;
+  ava: string | null;
 }
 
 export class SessionService {
@@ -17,7 +18,8 @@ export class SessionService {
         uid: user.sub2apiUserId,
         subid: user.linuxdoSubject,
         semail: user.syntheticEmail,
-        uname: user.username
+        uname: user.username,
+        ava: user.avatarUrl ?? null
       } satisfies SessionClaims,
       config.WELFARE_JWT_SECRET,
       {
@@ -35,7 +37,8 @@ export class SessionService {
       sub2apiUserId: decoded.uid,
       linuxdoSubject: decoded.subid,
       syntheticEmail: decoded.semail,
-      username: decoded.uname
+      username: decoded.uname,
+      avatarUrl: decoded.ava ?? null
     };
   }
 }

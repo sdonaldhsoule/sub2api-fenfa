@@ -4,7 +4,7 @@ export function LoginPage() {
   return (
     <div className="page page-center">
       <div className="card auth-card">
-        <span className="eyebrow">welfare station</span>
+        <span className="eyebrow">福利站</span>
         <h1 className="hero-title">sub2api 福利站</h1>
         <p className="lead">
           使用 LinuxDo 账号登录后自动匹配 sub2api 用户，通过每日签到领取额度奖励。

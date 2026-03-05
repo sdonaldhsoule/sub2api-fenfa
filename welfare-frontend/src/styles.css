@@ -170,11 +170,10 @@ h3 {
   border-radius: var(--radius-pill);
   background: var(--coral-soft);
   color: var(--coral);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  font-family: var(--font-body);
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .hero-title {
@@ -196,6 +195,27 @@ h3 {
 }
 
 /* ─── 布局工具 ─── */
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--surface-3);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.user-avatar-sm {
+  width: 32px;
+  height: 32px;
+}
 
 .row {
   display: flex;

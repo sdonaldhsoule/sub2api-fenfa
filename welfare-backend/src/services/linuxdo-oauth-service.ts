@@ -5,6 +5,7 @@ import { isSafeLinuxDoSubject } from '../utils/oauth.js';
 export interface LinuxDoUserInfo {
   subject: string;
   username: string;
+  avatarUrl: string | null;
 }
 
 export class LinuxDoOAuthService {
@@ -83,9 +84,19 @@ export class LinuxDoOAuthService {
         'user.name'
       ]) ?? `linuxdo_${subjectRaw}`;
 
+    const avatarTemplate = this.pickString(payload, [
+      'avatar_template',
+      'avatar_url',
+      'picture'
+    ]);
+    const avatarUrl = avatarTemplate
+      ? this.buildAvatarUrl(avatarTemplate)
+      : null;
+
     return {
       subject: subjectRaw,
-      username
+      username,
+      avatarUrl
     };
   }
 
@@ -103,6 +114,12 @@ export class LinuxDoOAuthService {
       }
     }
     return null;
+  }
+
+  private buildAvatarUrl(template: string): string {
+    const path = template.replace('{size}', '288');
+    if (path.startsWith('http')) return path;
+    return `https://linux.do${path}`;
   }
 
   private readPath(source: Record<string, unknown>, path: string): unknown {

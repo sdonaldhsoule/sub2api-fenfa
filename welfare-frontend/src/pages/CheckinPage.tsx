@@ -88,7 +88,7 @@ export function CheckinPage() {
     return (
       <div className="page page-center">
         <div className="card auth-card">
-          <span className="eyebrow">check-in</span>
+          <span className="eyebrow">签到</span>
           <h1 className="hero-title">每日签到</h1>
           <p className="loading-text">加载中...</p>
         </div>
@@ -101,11 +101,20 @@ export function CheckinPage() {
       <div className="card">
         <div className="row topbar">
           <div>
-            <span className="eyebrow">check-in console</span>
+            <span className="eyebrow">签到中心</span>
             <h1 className="hero-title">每日签到</h1>
-            <p className="muted" style={{ marginTop: 6 }}>
-              {user?.username}（sub2api #{user?.sub2api_user_id}）
-            </p>
+            <div className="user-info">
+              {user?.avatar_url && (
+                <img
+                  className="user-avatar"
+                  src={user.avatar_url}
+                  alt={user.username}
+                />
+              )}
+              <p className="muted" style={{ marginTop: 0 }}>
+                {user?.username}（sub2api #{user?.sub2api_user_id}）
+              </p>
+            </div>
           </div>
           <div className="actions">
             {user?.is_admin && (

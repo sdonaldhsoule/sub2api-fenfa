@@ -100,7 +100,7 @@ export function AdminPage() {
     return (
       <div className="page page-center">
         <div className="card auth-card">
-          <span className="eyebrow">admin console</span>
+          <span className="eyebrow">管理后台</span>
           <h1 className="hero-title">福利后台</h1>
           <p className="loading-text">加载中...</p>
         </div>
@@ -112,7 +112,7 @@ export function AdminPage() {
     return (
       <div className="page page-center">
         <div className="card auth-card">
-          <span className="eyebrow">access denied</span>
+          <span className="eyebrow">无权限</span>
           <h1 className="hero-title">无权限</h1>
           <p className="alert error">{error || '当前账号不是管理员'}</p>
           <Link to="/checkin" className="button" style={{ marginTop: 12 }}>
@@ -128,9 +128,18 @@ export function AdminPage() {
       <div className="card">
         <div className="row topbar">
           <div>
-            <span className="eyebrow">admin console</span>
+            <span className="eyebrow">管理后台</span>
             <h1 className="hero-title">福利后台管理</h1>
-            <p className="muted" style={{ marginTop: 6 }}>管理员：{me.username}</p>
+            <div className="user-info">
+              {me.avatar_url && (
+                <img
+                  className="user-avatar user-avatar-sm"
+                  src={me.avatar_url}
+                  alt={me.username}
+                />
+              )}
+              <p className="muted" style={{ marginTop: 0 }}>管理员：{me.username}</p>
+            </div>
           </div>
           <div className="actions">
             <Link to="/checkin" className="button ghost">

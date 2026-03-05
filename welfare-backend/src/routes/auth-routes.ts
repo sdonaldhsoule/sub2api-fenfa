@@ -145,7 +145,8 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
       sub2apiUserId: sub2apiUser.id,
       linuxdoSubject: profile.subject,
       syntheticEmail,
-      username: profile.username
+      username: profile.username,
+      avatarUrl: profile.avatarUrl
     });
 
     res.cookie('welfare_token', token, {
@@ -178,6 +179,7 @@ authRouter.get('/me', requireAuth, asyncHandler(async (req, res) => {
     linuxdo_subject: user.linuxdoSubject,
     synthetic_email: user.syntheticEmail,
     username: user.username,
+    avatar_url: user.avatarUrl,
     is_admin: isAdmin
   });
 }));
