@@ -6,17 +6,14 @@ import type { CheckinHistoryItem, CheckinStatus, SessionUser } from '../types';
 
 function checkinStatusText(status: CheckinStatus | null): string {
   if (!status) return '-';
-  if (status.checked_in) return '已签到';
+  if (status.checked_in) return '已签到 ✓';
   if (status.grant_status === 'pending') return '处理中';
   return '未签到';
 }
 
 function renderGrantTag(status: CheckinHistoryItem['grant_status']) {
-  return (
-    <span className={`status-tag ${status}`}>
-      {status === 'success' ? '成功' : status === 'pending' ? '处理中' : '失败'}
-    </span>
-  );
+  const label = status === 'success' ? '成功' : status === 'pending' ? '处理中' : '失败';
+  return <span className={`status-tag ${status}`}>{label}</span>;
 }
 
 export function CheckinPage() {
@@ -81,7 +78,7 @@ export function CheckinPage() {
     try {
       await api.logout();
     } catch {
-      // 忽略登出接口错误，前端本地态仍然清理。
+      // 忽略登出接口错误
     }
     clearToken();
     navigate('/login', { replace: true });
@@ -91,9 +88,9 @@ export function CheckinPage() {
     return (
       <div className="page page-center">
         <div className="card auth-card">
-          <p className="eyebrow">CHECK-IN CONSOLE</p>
+          <span className="eyebrow">check-in</span>
           <h1 className="hero-title">每日签到</h1>
-          <p className="muted">加载中...</p>
+          <p className="loading-text">加载中...</p>
         </div>
       </div>
     );
@@ -104,16 +101,16 @@ export function CheckinPage() {
       <div className="card">
         <div className="row topbar">
           <div>
-            <p className="eyebrow">CHECK-IN CONSOLE</p>
+            <span className="eyebrow">check-in console</span>
             <h1 className="hero-title">每日签到</h1>
-            <p className="muted">
-              用户：{user?.username}（sub2api 用户ID: {user?.sub2api_user_id}）
+            <p className="muted" style={{ marginTop: 6 }}>
+              {user?.username}（sub2api #{user?.sub2api_user_id}）
             </p>
           </div>
           <div className="actions">
             {user?.is_admin && (
               <Link to="/admin" className="button ghost">
-                后台管理
+                ⚙️ 后台管理
               </Link>
             )}
             <button className="button" onClick={handleLogout}>
@@ -148,7 +145,7 @@ export function CheckinPage() {
         <div className="row section-bar">
           <h2 className="section-title">签到操作</h2>
           <button className="button primary" disabled={!canCheckin} onClick={handleCheckin}>
-            {submitting ? '签到中...' : '立即签到'}
+            {submitting ? '签到中...' : '🎁 立即签到'}
           </button>
         </div>
 
@@ -162,11 +159,11 @@ export function CheckinPage() {
             <div key={item.id} className="list-item">
               <div className="stack">
                 <strong>{item.checkin_date}</strong>
-                <span className="muted">奖励 {item.reward_balance}</span>
+                <span className="muted" style={{ fontSize: 13 }}>奖励 {item.reward_balance}</span>
               </div>
               {renderGrantTag(item.grant_status)}
-              <span className="muted">{new Date(item.created_at).toLocaleString()}</span>
-              <span className="muted">{item.grant_error || '发放成功'}</span>
+              <span className="muted" style={{ fontSize: 13 }}>{new Date(item.created_at).toLocaleString()}</span>
+              <span className="muted" style={{ fontSize: 13 }}>{item.grant_error || '发放成功'}</span>
             </div>
           ))}
         </div>

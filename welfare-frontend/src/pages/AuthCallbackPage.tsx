@@ -44,7 +44,7 @@ export function AuthCallbackPage() {
   return (
     <div className="page page-center">
       <div className="card auth-card">
-        <p className="eyebrow">AUTH GATEWAY</p>
+        <span className="eyebrow">auth gateway</span>
         <h1 className="hero-title">登录回调</h1>
         <p className={isError ? 'alert error' : 'alert success'}>{message}</p>
       </div>

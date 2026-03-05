@@ -100,9 +100,9 @@ export function AdminPage() {
     return (
       <div className="page page-center">
         <div className="card auth-card">
-          <p className="eyebrow">ADMIN CONSOLE</p>
+          <span className="eyebrow">admin console</span>
           <h1 className="hero-title">福利后台</h1>
-          <p className="muted">加载中...</p>
+          <p className="loading-text">加载中...</p>
         </div>
       </div>
     );
@@ -110,12 +110,13 @@ export function AdminPage() {
 
   if (!me?.is_admin) {
     return (
-      <div className="page">
-        <div className="card">
-          <h1>无权限</h1>
+      <div className="page page-center">
+        <div className="card auth-card">
+          <span className="eyebrow">access denied</span>
+          <h1 className="hero-title">无权限</h1>
           <p className="alert error">{error || '当前账号不是管理员'}</p>
-          <Link to="/checkin" className="button">
-            返回签到页
+          <Link to="/checkin" className="button" style={{ marginTop: 12 }}>
+            ← 返回签到页
           </Link>
         </div>
       </div>
@@ -127,13 +128,13 @@ export function AdminPage() {
       <div className="card">
         <div className="row topbar">
           <div>
-            <p className="eyebrow">ADMIN CONSOLE</p>
+            <span className="eyebrow">admin console</span>
             <h1 className="hero-title">福利后台管理</h1>
-            <p className="muted">当前管理员：{me.username}</p>
+            <p className="muted" style={{ marginTop: 6 }}>管理员：{me.username}</p>
           </div>
           <div className="actions">
             <Link to="/checkin" className="button ghost">
-              返回签到页
+              ← 签到页
             </Link>
           </div>
         </div>
@@ -141,7 +142,8 @@ export function AdminPage() {
         {error && <p className="alert error">{error}</p>}
         {message && <p className="alert success">{message}</p>}
 
-        <h2 className="section-title">签到配置</h2>
+        {/* 签到配置 */}
+        <h2 className="section-title">⚙️ 签到配置</h2>
         {settings && (
           <div className="panel">
             <div className="form-grid">
@@ -151,14 +153,10 @@ export function AdminPage() {
                   type="checkbox"
                   checked={settings.checkin_enabled}
                   onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      checkin_enabled: event.target.checked
-                    })
+                    setSettings({ ...settings, checkin_enabled: event.target.checked })
                   }
                 />
               </label>
-
               <label className="field">
                 <span>每日奖励余额</span>
                 <input
@@ -167,24 +165,17 @@ export function AdminPage() {
                   min="0.01"
                   value={settings.daily_reward_balance}
                   onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      daily_reward_balance: Number(event.target.value)
-                    })
+                    setSettings({ ...settings, daily_reward_balance: Number(event.target.value) })
                   }
                 />
               </label>
-
               <label className="field">
                 <span>业务时区</span>
                 <input
                   type="text"
                   value={settings.timezone}
                   onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      timezone: event.target.value
-                    })
+                    setSettings({ ...settings, timezone: event.target.value })
                   }
                 />
               </label>
@@ -197,7 +188,8 @@ export function AdminPage() {
           </div>
         )}
 
-        <h2 className="section-title">30天签到统计</h2>
+        {/* 30天统计 */}
+        <h2 className="section-title">📊 30天签到统计</h2>
         {stats && (
           <div className="panel">
             <div className="admin-stats-summary">
@@ -216,7 +208,8 @@ export function AdminPage() {
           </div>
         )}
 
-        <h2 className="section-title">管理员白名单</h2>
+        {/* 管理员白名单 */}
+        <h2 className="section-title">🛡️ 管理员白名单</h2>
         <div className="panel">
           <div className="form-grid">
             <label className="field">
@@ -234,12 +227,12 @@ export function AdminPage() {
             </button>
           </div>
 
-          <div className="list">
+          <div className="list" style={{ marginTop: 16 }}>
             {whitelist.map((item) => (
               <div key={item.id} className="list-item">
                 <strong>{item.linuxdoSubject}</strong>
                 <span className="muted">{item.notes || '-'}</span>
-                <span className="muted">{new Date(item.createdAt).toLocaleString()}</span>
+                <span className="muted" style={{ fontSize: 13 }}>{new Date(item.createdAt).toLocaleString()}</span>
                 <button className="button danger" onClick={() => removeWhitelist(item.id)}>
                   删除
                 </button>
