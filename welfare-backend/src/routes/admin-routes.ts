@@ -2,11 +2,33 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth-middleware.js';
 import { requireAdmin } from '../middleware/admin-middleware.js';
-import { checkinService, welfareRepository } from '../services/checkin-service.js';
+import type { CheckinRecord } from '../types/domain.js';
+import {
+  checkinService,
+  ConflictError,
+  NotFoundError,
+  welfareRepository
+} from '../services/checkin-service.js';
 import { isSafeLinuxDoSubject } from '../utils/oauth.js';
 import { isValidTimezone } from '../utils/date.js';
 import { fail, ok } from '../utils/response.js';
 import { asyncHandler } from '../utils/async-handler.js';
+
+function toAdminCheckinPayload(record: CheckinRecord) {
+  return {
+    id: record.id,
+    sub2apiUserId: record.sub2apiUserId,
+    linuxdoSubject: record.linuxdoSubject,
+    syntheticEmail: record.syntheticEmail,
+    checkinDate: record.checkinDate,
+    rewardBalance: record.rewardBalance,
+    idempotencyKey: record.idempotencyKey,
+    grantStatus: record.grantStatus,
+    grantError: record.grantError,
+    sub2apiRequestId: record.sub2apiRequestId,
+    createdAt: record.createdAt
+  };
+}
 
 const settingsUpdateSchema = z.object({
   checkin_enabled: z.boolean().optional(),
@@ -98,12 +120,39 @@ adminRouter.get('/checkins', asyncHandler(async (req, res) => {
     subject: parsed.data.subject?.trim() || undefined
   });
   ok(res, {
-    items: result.items,
+    items: result.items.map((item) => toAdminCheckinPayload(item)),
     total: result.total,
     page,
     page_size: pageSize,
     pages: Math.max(1, Math.ceil(result.total / pageSize))
   });
+}));
+
+adminRouter.post('/checkins/:id/retry', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    fail(res, 400, 'BAD_REQUEST', 'id 非法');
+    return;
+  }
+
+  try {
+    const result = await checkinService.retryFailedCheckin(id);
+    ok(res, {
+      item: toAdminCheckinPayload(result.item),
+      new_balance: result.new_balance
+    });
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      fail(res, 404, 'NOT_FOUND', error.message);
+      return;
+    }
+    if (error instanceof ConflictError) {
+      fail(res, 409, 'CHECKIN_CONFLICT', error.message);
+      return;
+    }
+    console.error('[admin] 签到补发失败', error);
+    fail(res, 500, 'CHECKIN_RETRY_FAILED', '补发失败，请稍后重试');
+  }
 }));
 
 adminRouter.get('/whitelist', asyncHandler(async (_req, res) => {

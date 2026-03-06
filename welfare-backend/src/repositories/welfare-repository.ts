@@ -151,6 +151,17 @@ export class WelfareRepository {
     return result.rowCount ? this.mapCheckin(result.rows[0]) : null;
   }
 
+  async getCheckinById(id: number): Promise<CheckinRecord | null> {
+    const result = await this.db.query(
+      `SELECT *
+       FROM welfare_checkins
+       WHERE id = $1
+       LIMIT 1`,
+      [id]
+    );
+    return result.rowCount ? this.mapCheckin(result.rows[0]) : null;
+  }
+
   async createCheckinPending(input: CreateCheckinInput): Promise<CheckinRecord | null> {
     const result = await this.db.query(
       `INSERT INTO welfare_checkins (

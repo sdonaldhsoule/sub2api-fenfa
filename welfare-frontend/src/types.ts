@@ -54,6 +54,37 @@ export interface DailyStats {
   points: DailyStatPoint[];
 }
 
+export interface AdminCheckinItem {
+  id: number;
+  sub2apiUserId: number;
+  linuxdoSubject: string;
+  syntheticEmail: string;
+  checkinDate: string;
+  rewardBalance: number;
+  idempotencyKey: string;
+  grantStatus: 'pending' | 'success' | 'failed';
+  grantError: string;
+  sub2apiRequestId: string;
+  createdAt: string;
+}
+
+export interface AdminCheckinList {
+  items: AdminCheckinItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export interface AdminCheckinQuery {
+  page?: number;
+  page_size?: number;
+  date_from?: string;
+  date_to?: string;
+  grant_status?: 'pending' | 'success' | 'failed';
+  subject?: string;
+}
+
 export interface WhitelistItem {
   id: number;
   linuxdoSubject: string;

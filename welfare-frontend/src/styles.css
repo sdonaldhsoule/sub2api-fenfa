@@ -483,7 +483,9 @@ h3 {
 }
 
 .field input[type='text'],
-.field input[type='number'] {
+.field input[type='number'],
+.field input[type='date'],
+.field select {
   width: 100%;
   border-radius: var(--radius-sm);
   border: 1px solid var(--surface-3);
@@ -497,9 +499,15 @@ h3 {
 }
 
 .field input[type='text']:focus,
-.field input[type='number']:focus {
+.field input[type='number']:focus,
+.field input[type='date']:focus,
+.field select:focus {
   border-color: var(--coral);
   box-shadow: 0 0 0 3px rgba(232, 114, 92, 0.1);
+}
+
+.field select {
+  cursor: pointer;
 }
 
 .field input[type='checkbox'] {
@@ -613,6 +621,55 @@ h3 {
   font-weight: 500;
 }
 
+.admin-checkin-item {
+  grid-template-columns:
+    minmax(180px, 1.4fr)
+    minmax(120px, 0.95fr)
+    minmax(90px, 0.7fr)
+    minmax(140px, 0.95fr)
+    minmax(200px, 1.5fr)
+    auto;
+}
+
+.admin-checkin-meta {
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.admin-checkin-error {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-1);
+  overflow-wrap: anywhere;
+}
+
+.admin-checkin-error.failed {
+  color: #8a2e3a;
+}
+
+.admin-checkin-actions {
+  justify-content: flex-end;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.empty-state {
+  border: 1px dashed var(--panel-border);
+  border-radius: var(--radius-sm);
+  padding: 18px;
+  background: #fff;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
 /* ─── 加载动画 ─── */
 
 @keyframes fade-in {
@@ -664,6 +721,10 @@ h3 {
   .list-item {
     grid-template-columns: 1fr 1fr;
   }
+
+  .admin-checkin-item {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -683,6 +744,10 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  .admin-checkin-item {
+    grid-template-columns: 1fr;
+  }
+
   .topbar {
     flex-direction: column;
     gap: 12px;
@@ -690,5 +755,9 @@ h3 {
 
   .stats-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .pagination-bar {
+    align-items: flex-start;
   }
 }
