@@ -312,6 +312,18 @@ export class WelfareRepository {
     }));
   }
 
+  async getActiveUserCount(days: number): Promise<number> {
+    const result = await this.db.query<{ total: string }>(
+      `SELECT COUNT(DISTINCT sub2api_user_id)::text AS total
+       FROM welfare_checkins
+       WHERE grant_status = 'success'
+         AND checkin_date >= CURRENT_DATE - ($1::int - 1)`,
+      [days]
+    );
+
+    return Number(result.rows[0]?.total ?? 0);
+  }
+
   async withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await this.db.connect();
     try {

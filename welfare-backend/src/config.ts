@@ -41,6 +41,14 @@ const configSchema = z.object({
   BOOTSTRAP_ADMIN_SUBJECTS: z.string().default('')
 });
 
+function normalizeOrigin(value: string, fieldName: string): string {
+  try {
+    return new URL(value).origin;
+  } catch {
+    throw new Error(`${fieldName} 包含非法来源: ${value}`);
+  }
+}
+
 const parsed = configSchema.safeParse(process.env);
 if (!parsed.success) {
   const message = parsed.error.issues
@@ -50,17 +58,20 @@ if (!parsed.success) {
 }
 
 const raw = parsed.data;
-
-const corsOrigins = raw.WELFARE_CORS_ORIGINS.split(',')
+const frontendOrigin = normalizeOrigin(raw.WELFARE_FRONTEND_URL, 'WELFARE_FRONTEND_URL');
+const configuredCorsOrigins = raw.WELFARE_CORS_ORIGINS.split(',')
   .map((item) => item.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((item) => normalizeOrigin(item, 'WELFARE_CORS_ORIGINS'));
 const bootstrapAdminSubjects = raw.BOOTSTRAP_ADMIN_SUBJECTS.split(',')
   .map((item) => item.trim())
   .filter(Boolean);
 
 export const config = {
   ...raw,
-  WELFARE_CORS_ORIGINS: corsOrigins,
+  WELFARE_FRONTEND_ORIGIN: frontendOrigin,
+  WELFARE_CORS_ORIGINS:
+    configuredCorsOrigins.length > 0 ? configuredCorsOrigins : [frontendOrigin],
   BOOTSTRAP_ADMIN_SUBJECTS: bootstrapAdminSubjects,
   SUB2API_BASE_URL: raw.SUB2API_BASE_URL.replace(/\/+$/, '')
 };

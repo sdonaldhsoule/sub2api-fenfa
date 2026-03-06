@@ -29,6 +29,7 @@ checkinRouter.get('/history', asyncHandler(async (req, res) => {
     fail(res, 400, 'BAD_REQUEST', 'limit 参数非法');
     return;
   }
+
   const data = await checkinService.getHistory(
     req.sessionUser!,
     parsed.data.limit ?? 30
@@ -45,15 +46,19 @@ checkinRouter.post('/', asyncHandler(async (req, res) => {
       fail(res, 409, 'CHECKIN_CONFLICT', error.message);
       return;
     }
+
     if (error instanceof ForbiddenError) {
       fail(res, 403, 'CHECKIN_DISABLED', error.message);
       return;
     }
+
     if (error instanceof HttpError) {
-      fail(res, 502, 'SUB2API_GRANT_FAILED', error.message);
+      console.error('[checkin] sub2api 发放失败', error);
+      fail(res, 502, 'SUB2API_GRANT_FAILED', '奖励发放失败，请稍后重试');
       return;
     }
-    const detail = error instanceof Error ? error.message : '签到失败';
-    fail(res, 500, 'CHECKIN_FAILED', detail);
+
+    console.error('[checkin] 签到处理失败', error);
+    fail(res, 500, 'CHECKIN_FAILED', '签到失败，请稍后重试');
   }
 }));

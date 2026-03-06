@@ -12,11 +12,11 @@
 
 - 服务与安全
   - `PORT`：后端端口
-  - `WELFARE_FRONTEND_URL`：前端地址（用于 OAuth 回跳）
-  - `WELFARE_CORS_ORIGINS`：允许跨域来源（逗号分隔）
-  - `WELFARE_JWT_SECRET`：会话签名密钥（至少 16 位）
-  - `WELFARE_JWT_EXPIRES_IN`：JWT 过期时间（如 `7d`）
-  - `WELFARE_COOKIE_SECURE`：生产建议 `true`
+  - `WELFARE_FRONTEND_URL`：前端地址，用于 OAuth 回跳
+  - `WELFARE_CORS_ORIGINS`：允许跨域来源，多个值用逗号分隔；留空时默认仅允许 `WELFARE_FRONTEND_URL` 对应的 origin
+  - `WELFARE_JWT_SECRET`：会话签名密钥，至少 16 位
+  - `WELFARE_JWT_EXPIRES_IN`：JWT 过期时间，如 `7d`
+  - `WELFARE_COOKIE_SECURE`：生产环境建议设为 `true`
 
 - 数据库
   - `DATABASE_URL`：PostgreSQL 连接串
@@ -33,13 +33,13 @@
 - sub2api 集成
   - `SUB2API_BASE_URL`：sub2api 服务地址
   - `SUB2API_ADMIN_API_KEY`：sub2api 管理接口密钥
-  - `SUB2API_TIMEOUT_MS`：请求超时
+  - `SUB2API_TIMEOUT_MS`：请求超时毫秒数
 
 - 福利默认配置
   - `DEFAULT_CHECKIN_ENABLED`
   - `DEFAULT_DAILY_REWARD`
-  - `DEFAULT_TIMEZONE`（默认 `Asia/Shanghai`）
-  - `BOOTSTRAP_ADMIN_SUBJECTS`：启动自动写入管理员白名单（逗号分隔）
+  - `DEFAULT_TIMEZONE`，默认 `Asia/Shanghai`
+  - `BOOTSTRAP_ADMIN_SUBJECTS`：启动时自动写入管理员白名单，逗号分隔
 
 ## 运行方式
 
@@ -66,15 +66,16 @@ npm test
 
 - 启动时自动执行 `migrations/*.sql`
 - 首次自动写入 `welfare_settings` 默认配置
-- 签到流水写入 `welfare_checkins`，并通过 `(sub2api_user_id, checkin_date)` 保证每日唯一
+- 签到流水写入 `welfare_checkins`
+- 通过 `(sub2api_user_id, checkin_date)` 保证每日唯一签到
 
 ## 核心接口
 
 ### 鉴权
 
 - `GET /api/auth/linuxdo/start`：跳转 LinuxDo 登录
-- `GET /api/auth/linuxdo/callback`：处理 OAuth 回调，签发福利站 token
-- `GET /api/auth/me`：返回当前会话信息（含 `is_admin`）
+- `GET /api/auth/linuxdo/callback`：处理 OAuth 回调，写入 `HttpOnly Cookie` 会话
+- `GET /api/auth/me`：返回当前会话信息，包含 `is_admin`
 - `POST /api/auth/logout`：退出登录
 
 ### 签到
@@ -86,20 +87,16 @@ npm test
 ### 管理后台
 
 - `GET /api/admin/settings`：读取签到配置
-- `PUT /api/admin/settings`：更新签到配置（开关/奖励/时区）
+- `PUT /api/admin/settings`：更新签到配置
 - `GET /api/admin/stats/daily`：按天统计
 - `GET /api/admin/checkins`：分页查询签到明细
 - `GET /api/admin/whitelist`：管理员白名单列表
-- `POST /api/admin/whitelist`：新增/更新白名单
+- `POST /api/admin/whitelist`：新增或更新白名单
 - `DELETE /api/admin/whitelist/:id`：删除白名单
 
 ## 与 sub2api 的对接细节
 
-- 用户识别规则：  
-  `linuxdo-{subject}@linuxdo-connect.invalid`
-- 查询用户：  
-  `GET /api/v1/admin/users?search=<synthetic_email>`
-- 发放额度：  
-  `POST /api/v1/admin/users/:id/balance`
-- 幂等键：  
-  `Idempotency-Key: welfare-checkin:{userId}:{checkinDate}`
+- 用户识别规则：`linuxdo-{subject}@linuxdo-connect.invalid`
+- 查询用户：`GET /api/v1/admin/users?search=<synthetic_email>`
+- 发放额度：`POST /api/v1/admin/users/:id/balance`
+- 幂等键：`Idempotency-Key: welfare-checkin:{userId}:{checkinDate}`

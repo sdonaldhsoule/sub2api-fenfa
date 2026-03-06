@@ -48,6 +48,7 @@ export interface DailyStatPoint {
 
 export interface DailyStats {
   days: number;
+  active_users: number;
   total_checkins: number;
   total_grant_balance: number;
   points: DailyStatPoint[];
@@ -59,4 +60,3 @@ export interface WhitelistItem {
   notes: string;
   createdAt: string;
 }
-

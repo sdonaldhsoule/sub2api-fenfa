@@ -113,11 +113,15 @@ export class CheckinService {
   }
 
   async getAdminDailyStats(days: number) {
-    const points = await repository.getDailyStats(days);
+    const [points, activeUsers] = await Promise.all([
+      repository.getDailyStats(days),
+      repository.getActiveUserCount(days)
+    ]);
     const totalUsers = points.reduce((sum, point) => sum + point.checkinUsers, 0);
     const totalGrant = points.reduce((sum, point) => sum + point.grantTotal, 0);
     return {
       days,
+      active_users: activeUsers,
       total_checkins: totalUsers,
       total_grant_balance: totalGrant,
       points
@@ -138,4 +142,3 @@ export class CheckinService {
 
 export const checkinService = new CheckinService();
 export const welfareRepository = repository;
-

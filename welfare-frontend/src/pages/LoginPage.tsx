@@ -1,6 +1,14 @@
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
 import { buildLinuxDoStartUrl } from '../lib/api';
 
 export function LoginPage() {
+  const { status } = useAuth();
+
+  if (status === 'authenticated') {
+    return <Navigate to="/checkin" replace />;
+  }
+
   return (
     <div className="page page-center">
       <div className="card auth-card">

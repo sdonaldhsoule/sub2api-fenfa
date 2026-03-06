@@ -6,7 +6,7 @@
 
 `.env.example`：
 
-- `VITE_WELFARE_API_BASE`：福利后端地址（如 `http://localhost:8787`）
+- `VITE_WELFARE_API_BASE`：福利后端地址，如 `http://localhost:8787`
 
 ## 运行方式
 
@@ -25,15 +25,15 @@ npm run preview
 
 ## 页面与路由
 
-- `/login`：登录入口（跳转后端 `GET /api/auth/linuxdo/start`）
-- `/auth/callback`：OAuth 回跳页（解析 hash 中 `token/error`）
-- `/checkin`：签到页（今日状态 + 签到历史）
-- `/admin`：管理员页（配置、统计、白名单）
+- `/login`：登录入口，跳转后端 `GET /api/auth/linuxdo/start`
+- `/auth/callback`：OAuth 回调页，只负责处理错误提示与会话校验
+- `/checkin`：签到页，展示今日状态与签到历史
+- `/admin`：管理员页，展示配置、统计、白名单
 
 ## 鉴权策略
 
-- 令牌存储：`localStorage`（键名 `welfare_token`）
-- API 请求同时携带：
-  - `Authorization: Bearer <token>`
-  - `credentials: include`（兼容后端 cookie）
-- 遇到 `401` 会自动清理本地 token 并回登录页
+- 不再把会话 token 存进 `localStorage`
+- 仅使用后端设置的 `HttpOnly Cookie` 维持登录态
+- 前端通过 `GET /api/auth/me` 刷新当前会话状态
+- 所有 API 请求统一携带 `credentials: include`
+- 遇到 `401` 时会自动回到登录页

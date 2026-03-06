@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
-import { clearToken } from '../lib/auth';
-import type { CheckinHistoryItem, CheckinStatus, SessionUser } from '../types';
+import { useAuth } from '../lib/auth';
+import { api, isUnauthorizedError } from '../lib/api';
+import type { CheckinHistoryItem, CheckinStatus } from '../types';
 
 function checkinStatusText(status: CheckinStatus | null): string {
   if (!status) return '-';
-  if (status.checked_in) return '已签到 ✓';
+  if (status.checked_in) return '已签到 ✅';
   if (status.grant_status === 'pending') return '处理中';
   return '未签到';
 }
@@ -18,7 +18,7 @@ function renderGrantTag(status: CheckinHistoryItem['grant_status']) {
 
 export function CheckinPage() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<SessionUser | null>(null);
+  const { user, logout } = useAuth();
   const [status, setStatus] = useState<CheckinStatus | null>(null);
   const [history, setHistory] = useState<CheckinHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,22 +26,27 @@ export function CheckinPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  async function redirectToLogin() {
+    await logout();
+    navigate('/login', { replace: true });
+  }
+
   async function loadAll() {
     setLoading(true);
     setError('');
     try {
-      const [me, currentStatus, records] = await Promise.all([
-        api.getMe(),
+      const [currentStatus, records] = await Promise.all([
         api.getCheckinStatus(),
         api.getCheckinHistory()
       ]);
-      setUser(me);
       setStatus(currentStatus);
       setHistory(records);
     } catch (err) {
+      if (isUnauthorizedError(err)) {
+        await redirectToLogin();
+        return;
+      }
       setError(err instanceof Error ? err.message : '加载失败');
-      clearToken();
-      setTimeout(() => navigate('/login', { replace: true }), 1000);
     } finally {
       setLoading(false);
     }
@@ -68,6 +73,10 @@ export function CheckinPage() {
       );
       await loadAll();
     } catch (err) {
+      if (isUnauthorizedError(err)) {
+        await redirectToLogin();
+        return;
+      }
       setError(err instanceof Error ? err.message : '签到失败');
     } finally {
       setSubmitting(false);
@@ -75,13 +84,7 @@ export function CheckinPage() {
   }
 
   async function handleLogout() {
-    try {
-      await api.logout();
-    } catch {
-      // 忽略登出接口错误
-    }
-    clearToken();
-    navigate('/login', { replace: true });
+    await redirectToLogin();
   }
 
   if (loading) {
@@ -143,10 +146,10 @@ export function CheckinPage() {
               <div className="stat-value warning">{status.daily_reward_balance}</div>
             </div>
             <div className="stat-card">
-              <div className="stat-label">签到状态</div>
               <div className={`stat-value ${status.checked_in ? 'success' : ''}`}>
                 {checkinStatusText(status)}
               </div>
+              <div className="stat-label">签到状态</div>
             </div>
           </div>
         )}
@@ -168,11 +171,17 @@ export function CheckinPage() {
             <div key={item.id} className="list-item">
               <div className="stack">
                 <strong>{item.checkin_date}</strong>
-                <span className="muted" style={{ fontSize: 13 }}>奖励 {item.reward_balance}</span>
+                <span className="muted" style={{ fontSize: 13 }}>
+                  奖励 {item.reward_balance}
+                </span>
               </div>
               {renderGrantTag(item.grant_status)}
-              <span className="muted" style={{ fontSize: 13 }}>{new Date(item.created_at).toLocaleString()}</span>
-              <span className="muted" style={{ fontSize: 13 }}>{item.grant_error || '发放成功'}</span>
+              <span className="muted" style={{ fontSize: 13 }}>
+                {new Date(item.created_at).toLocaleString()}
+              </span>
+              <span className="muted" style={{ fontSize: 13 }}>
+                {item.grant_error || '发放成功'}
+              </span>
             </div>
           ))}
         </div>

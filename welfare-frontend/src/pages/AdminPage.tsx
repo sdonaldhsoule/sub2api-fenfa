@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
-import { clearToken } from '../lib/auth';
-import type { AdminSettings, DailyStats, SessionUser, WhitelistItem } from '../types';
+import { useAuth } from '../lib/auth';
+import { api, isUnauthorizedError } from '../lib/api';
+import type { AdminSettings, DailyStats, WhitelistItem } from '../types';
 
 export function AdminPage() {
   const navigate = useNavigate();
-  const [me, setMe] = useState<SessionUser | null>(null);
+  const { user, logout } = useAuth();
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [stats, setStats] = useState<DailyStats | null>(null);
   const [whitelist, setWhitelist] = useState<WhitelistItem[]>([]);
@@ -17,30 +17,29 @@ export function AdminPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  async function redirectToLogin() {
+    await logout();
+    navigate('/login', { replace: true });
+  }
+
   async function loadAll() {
     setLoading(true);
     setError('');
     try {
-      const [profile, settingsResp, statsResp, whitelistResp] = await Promise.all([
-        api.getMe(),
+      const [settingsResp, statsResp, whitelistResp] = await Promise.all([
         api.getAdminSettings(),
         api.getDailyStats(30),
         api.listWhitelist()
       ]);
-      if (!profile.is_admin) {
-        throw new Error('当前账号不在管理员白名单');
-      }
-      setMe(profile);
       setSettings(settingsResp);
       setStats(statsResp);
       setWhitelist(whitelistResp);
     } catch (err) {
-      const text = err instanceof Error ? err.message : '加载失败';
-      setError(text);
-      if (text.includes('登录') || text.includes('401') || text.includes('UNAUTHORIZED')) {
-        clearToken();
-        setTimeout(() => navigate('/login', { replace: true }), 1000);
+      if (isUnauthorizedError(err)) {
+        await redirectToLogin();
+        return;
       }
+      setError(err instanceof Error ? err.message : '加载失败');
     } finally {
       setLoading(false);
     }
@@ -60,6 +59,10 @@ export function AdminPage() {
       setSettings(updated);
       setMessage('设置保存成功');
     } catch (err) {
+      if (isUnauthorizedError(err)) {
+        await redirectToLogin();
+        return;
+      }
       setError(err instanceof Error ? err.message : '保存失败');
     } finally {
       setSaving(false);
@@ -80,6 +83,10 @@ export function AdminPage() {
       setWhitelist(await api.listWhitelist());
       setMessage('已添加管理员白名单');
     } catch (err) {
+      if (isUnauthorizedError(err)) {
+        await redirectToLogin();
+        return;
+      }
       setError(err instanceof Error ? err.message : '新增失败');
     }
   }
@@ -92,6 +99,10 @@ export function AdminPage() {
       setWhitelist(await api.listWhitelist());
       setMessage('已删除白名单');
     } catch (err) {
+      if (isUnauthorizedError(err)) {
+        await redirectToLogin();
+        return;
+      }
       setError(err instanceof Error ? err.message : '删除失败');
     }
   }
@@ -108,15 +119,15 @@ export function AdminPage() {
     );
   }
 
-  if (!me?.is_admin) {
+  if (!user?.is_admin) {
     return (
       <div className="page page-center">
         <div className="card auth-card">
           <span className="eyebrow">无权限</span>
-          <h1 className="hero-title">无权限</h1>
-          <p className="alert error">{error || '当前账号不是管理员'}</p>
+          <h1 className="hero-title">无权限访问</h1>
+          <p className="alert error">{error || '当前账号不在管理员白名单中'}</p>
           <Link to="/checkin" className="button" style={{ marginTop: 12 }}>
-            ← 返回签到页
+            → 返回签到页
           </Link>
         </div>
       </div>
@@ -131,19 +142,21 @@ export function AdminPage() {
             <span className="eyebrow">管理后台</span>
             <h1 className="hero-title">福利后台管理</h1>
             <div className="user-info">
-              {me.avatar_url && (
+              {user.avatar_url && (
                 <img
                   className="user-avatar user-avatar-sm"
-                  src={me.avatar_url}
-                  alt={me.username}
+                  src={user.avatar_url}
+                  alt={user.username}
                 />
               )}
-              <p className="muted" style={{ marginTop: 0 }}>管理员：{me.username}</p>
+              <p className="muted" style={{ marginTop: 0 }}>
+                管理员：{user.username}
+              </p>
             </div>
           </div>
           <div className="actions">
             <Link to="/checkin" className="button ghost">
-              ← 签到页
+              → 签到页
             </Link>
           </div>
         </div>
@@ -151,7 +164,6 @@ export function AdminPage() {
         {error && <p className="alert error">{error}</p>}
         {message && <p className="alert success">{message}</p>}
 
-        {/* 签到配置 */}
         <h2 className="section-title">⚙️ 签到配置</h2>
         {settings && (
           <div className="panel">
@@ -197,11 +209,11 @@ export function AdminPage() {
           </div>
         )}
 
-        {/* 30天统计 */}
-        <h2 className="section-title">📊 30天签到统计</h2>
+        <h2 className="section-title">📊 30 天签到统计</h2>
         {stats && (
           <div className="panel">
             <div className="admin-stats-summary">
+              <span className="chip">签到用户数：{stats.active_users}</span>
               <span className="chip">签到人次：{stats.total_checkins}</span>
               <span className="chip">发放总额：{stats.total_grant_balance}</span>
             </div>
@@ -217,8 +229,7 @@ export function AdminPage() {
           </div>
         )}
 
-        {/* 管理员白名单 */}
-        <h2 className="section-title">🛡️ 管理员白名单</h2>
+        <h2 className="section-title">🛝 管理员白名单</h2>
         <div className="panel">
           <div className="form-grid">
             <label className="field">
@@ -241,7 +252,9 @@ export function AdminPage() {
               <div key={item.id} className="list-item">
                 <strong>{item.linuxdoSubject}</strong>
                 <span className="muted">{item.notes || '-'}</span>
-                <span className="muted" style={{ fontSize: 13 }}>{new Date(item.createdAt).toLocaleString()}</span>
+                <span className="muted" style={{ fontSize: 13 }}>
+                  {new Date(item.createdAt).toLocaleString()}
+                </span>
                 <button className="button danger" onClick={() => removeWhitelist(item.id)}>
                   删除
                 </button>

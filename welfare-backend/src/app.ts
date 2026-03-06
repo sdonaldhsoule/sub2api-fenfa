@@ -7,6 +7,8 @@ import { checkinRouter } from './routes/checkin-routes.js';
 import { adminRouter } from './routes/admin-routes.js';
 import { ok } from './utils/response.js';
 
+const CORS_ERROR_PREFIX = 'CORS_ORIGIN_NOT_ALLOWED:';
+
 export function createApp() {
   const app = express();
 
@@ -19,14 +21,11 @@ export function createApp() {
           callback(null, true);
           return;
         }
-        if (
-          config.WELFARE_CORS_ORIGINS.length === 0 ||
-          config.WELFARE_CORS_ORIGINS.includes(origin)
-        ) {
+        if (config.WELFARE_CORS_ORIGINS.includes(origin)) {
           callback(null, true);
           return;
         }
-        callback(new Error(`CORS origin 不允许: ${origin}`));
+        callback(new Error(`${CORS_ERROR_PREFIX}${origin}`));
       },
       credentials: true
     })
@@ -47,7 +46,7 @@ export function createApp() {
     res.status(404).json({
       code: 404,
       message: 'NOT_FOUND',
-      detail: `未找到接口 ${req.method} ${req.path}`
+      detail: `未找到接口：${req.method} ${req.path}`
     });
   });
 
@@ -58,15 +57,23 @@ export function createApp() {
       res: express.Response,
       _next: express.NextFunction
     ) => {
-      const detail = error instanceof Error ? error.message : '服务器异常';
+      if (error instanceof Error && error.message.startsWith(CORS_ERROR_PREFIX)) {
+        res.status(403).json({
+          code: 403,
+          message: 'FORBIDDEN',
+          detail: '跨域请求来源未被允许'
+        });
+        return;
+      }
+
+      console.error('[welfare-backend] 未处理异常', error);
       res.status(500).json({
         code: 500,
         message: 'INTERNAL_ERROR',
-        detail
+        detail: '服务端错误，请稍后再试'
       });
     }
   );
 
   return app;
 }
-

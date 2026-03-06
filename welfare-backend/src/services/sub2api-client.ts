@@ -20,18 +20,32 @@ interface AdminUsersPage {
   total: number;
 }
 
+const USER_PAGE_SIZE = 100;
+
 export class Sub2apiClient {
   private readonly baseHeaders = {
     'Content-Type': 'application/json',
     'x-api-key': config.SUB2API_ADMIN_API_KEY
   } as const;
 
-  async findUserBySyntheticEmail(email: string): Promise<AdminUserLite | null> {
+  private parseEnvelope<T>(body: string, context: string): Sub2apiEnvelope<T> {
+    try {
+      return JSON.parse(body) as Sub2apiEnvelope<T>;
+    } catch {
+      throw new Error(`${context}：sub2api 返回了无法解析的响应`);
+    }
+  }
+
+  private async fetchUsersPage(
+    email: string,
+    page: number
+  ): Promise<Sub2apiEnvelope<AdminUsersPage>> {
     const query = new URLSearchParams({
-      page: '1',
-      page_size: '20',
+      page: String(page),
+      page_size: String(USER_PAGE_SIZE),
       search: email
     });
+
     const response = await fetchWithTimeout(
       `${config.SUB2API_BASE_URL}/api/v1/admin/users?${query.toString()}`,
       {
@@ -45,16 +59,36 @@ export class Sub2apiClient {
       throw new HttpError(response.status, body, `查询 sub2api 用户失败: ${response.status}`);
     }
 
-    const envelope = JSON.parse(body) as Sub2apiEnvelope<AdminUsersPage>;
+    const envelope = this.parseEnvelope<AdminUsersPage>(body, '查询 sub2api 用户失败');
     if (envelope.code !== 0 || !envelope.data) {
-      throw new Error(`sub2api 返回异常：${envelope.message || 'unknown error'}`);
+      throw new Error(`查询 sub2api 用户失败：${envelope.message || 'unknown error'}`);
     }
 
+    return envelope;
+  }
+
+  async findUserBySyntheticEmail(email: string): Promise<AdminUserLite | null> {
     const normalized = email.toLowerCase();
-    const matched =
-      envelope.data.items?.find((item) => item.email?.toLowerCase() === normalized) ??
-      null;
-    return matched;
+    let page = 1;
+    let totalPages = 1;
+
+    while (page <= totalPages) {
+      const envelope = await this.fetchUsersPage(email, page);
+      const items = envelope.data?.items ?? [];
+      const matched = items.find((item) => item.email?.toLowerCase() === normalized) ?? null;
+      if (matched) {
+        return matched;
+      }
+
+      const total = envelope.data?.total ?? items.length;
+      totalPages = Math.max(1, Math.ceil(total / USER_PAGE_SIZE));
+      if (items.length === 0) {
+        break;
+      }
+      page += 1;
+    }
+
+    return null;
   }
 
   async addUserBalance(input: {
@@ -85,10 +119,11 @@ export class Sub2apiClient {
       throw new HttpError(response.status, body, `sub2api 加余额失败: ${response.status}`);
     }
 
-    const envelope = JSON.parse(body) as Sub2apiEnvelope<AdminUserLite>;
+    const envelope = this.parseEnvelope<AdminUserLite>(body, 'sub2api 加余额失败');
     if (envelope.code !== 0) {
       throw new Error(`sub2api 加余额失败：${envelope.message || 'unknown error'}`);
     }
+
     return {
       newBalance: envelope.data?.balance,
       requestId
@@ -97,4 +132,3 @@ export class Sub2apiClient {
 }
 
 export const sub2apiClient = new Sub2apiClient();
-

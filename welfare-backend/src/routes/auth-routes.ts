@@ -17,6 +17,7 @@ import {
 } from '../utils/oauth.js';
 
 const LINUXDO_COOKIE_NAME = 'welfare_oauth_state';
+const SESSION_COOKIE_NAME = 'welfare_token';
 const COOKIE_MAX_AGE_MS = 10 * 60 * 1000;
 
 function sanitizeRedirectPath(path: string | undefined): string {
@@ -103,6 +104,7 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
     sendFrontendError(query.error, query.error_description);
     return;
   }
+
   if (!query.code || !query.state) {
     sendFrontendError('missing_params', '缺少 code 或 state');
     return;
@@ -110,20 +112,23 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
 
   const signedState = req.cookies?.[LINUXDO_COOKIE_NAME] as string | undefined;
   if (!signedState) {
-    sendFrontendError('state_missing', '会话状态已失效');
+    sendFrontendError('state_missing', '登录状态已失效，请重新发起登录');
     return;
   }
+
   const oauthState = verifyOAuthState(signedState, config.WELFARE_JWT_SECRET);
   if (!oauthState) {
-    sendFrontendError('state_invalid', '会话状态校验失败');
+    sendFrontendError('state_invalid', '登录状态校验失败，请重新登录');
     return;
   }
+
   if (oauthState.state !== query.state) {
-    sendFrontendError('state_mismatch', 'state 不匹配');
+    sendFrontendError('state_mismatch', 'OAuth state 不匹配');
     return;
   }
+
   if (Date.now() - oauthState.issuedAt > COOKIE_MAX_AGE_MS) {
-    sendFrontendError('state_expired', '会话已过期');
+    sendFrontendError('state_expired', '登录状态已过期，请重新登录');
     return;
   }
 
@@ -149,7 +154,7 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
       avatarUrl: profile.avatarUrl
     });
 
-    res.cookie('welfare_token', token, {
+    res.cookie(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       secure: config.WELFARE_COOKIE_SECURE,
       sameSite: 'lax',
@@ -161,13 +166,12 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
     });
 
     frontendCallbackUrl.hash = buildFrontendCallbackHash({
-      token,
       redirect: oauthState.redirectPath
     });
     res.redirect(frontendCallbackUrl.toString());
   } catch (error) {
-    const detail = error instanceof Error ? error.message : 'oauth 处理失败';
-    sendFrontendError('oauth_failed', detail);
+    console.error('[auth] LinuxDo OAuth 处理失败', error);
+    sendFrontendError('oauth_failed', '登录流程失败，请稍后重试');
   }
 }));
 
@@ -185,7 +189,7 @@ authRouter.get('/me', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 authRouter.post('/logout', (_req, res) => {
-  res.clearCookie('welfare_token', {
+  res.clearCookie(SESSION_COOKIE_NAME, {
     path: '/'
   });
   ok(res, { message: '已退出登录' });

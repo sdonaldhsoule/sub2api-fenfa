@@ -1,4 +1,3 @@
-import { clearToken, getToken } from './auth';
 import type {
   AdminSettings,
   ApiEnvelope,
@@ -11,16 +10,27 @@ import type {
 
 const apiBase = import.meta.env.VITE_WELFARE_API_BASE?.replace(/\/+$/, '') || '';
 
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: number;
+
+  constructor(status: number, code: number, message: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export function isUnauthorizedError(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.status === 401;
+}
+
 async function request<T>(
   path: string,
   init: RequestInit = {}
 ): Promise<T> {
-  const token = getToken();
   const headers = new Headers(init.headers ?? {});
   headers.set('Content-Type', 'application/json');
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
 
   const response = await fetch(`${apiBase}${path}`, {
     ...init,
@@ -30,10 +40,11 @@ async function request<T>(
 
   const body = (await response.json()) as ApiEnvelope<T>;
   if (!response.ok || body.code !== 0) {
-    if (response.status === 401) {
-      clearToken();
-    }
-    throw new Error(body.detail || body.message || '请求失败');
+    throw new ApiError(
+      response.status,
+      body.code,
+      body.detail || body.message || '请求失败'
+    );
   }
   return body.data;
 }
@@ -74,4 +85,3 @@ export function buildLinuxDoStartUrl(redirectPath: string): string {
   url.searchParams.set('redirect', redirectPath);
   return url.toString();
 }
-

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setToken } from '../lib/auth';
+import { useAuth } from '../lib/auth';
 
 function parseHash(hash: string): Record<string, string> {
   const normalized = hash.startsWith('#') ? hash.slice(1) : hash;
@@ -14,32 +14,57 @@ function parseHash(hash: string): Record<string, string> {
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
+  const { refresh } = useAuth();
   const [message, setMessage] = useState('正在处理登录回调...');
   const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     const params = parseHash(window.location.hash);
     const error = params.error;
-    const token = params.token;
     const redirect = params.redirect || '/checkin';
 
     if (error) {
       setIsError(true);
       setMessage(`登录失败：${params.detail || error}`);
-      setTimeout(() => navigate('/login', { replace: true }), 1500);
-      return;
-    }
-    if (!token) {
-      setIsError(true);
-      setMessage('登录失败：缺少 token');
-      setTimeout(() => navigate('/login', { replace: true }), 1500);
-      return;
+      const timeout = window.setTimeout(() => {
+        navigate('/login', { replace: true });
+      }, 1500);
+      return () => window.clearTimeout(timeout);
     }
 
-    setToken(token);
-    setMessage('登录成功，正在跳转...');
-    navigate(redirect, { replace: true });
-  }, [navigate]);
+    let cancelled = false;
+
+    void refresh()
+      .then((user) => {
+        if (cancelled) {
+          return;
+        }
+        if (!user) {
+          setIsError(true);
+          setMessage('登录失败：未建立有效会话');
+          window.setTimeout(() => {
+            navigate('/login', { replace: true });
+          }, 1500);
+          return;
+        }
+        setMessage('登录成功，正在跳转...');
+        navigate(redirect, { replace: true });
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setIsError(true);
+        setMessage('登录失败：会话校验未通过，请稍后重试');
+        window.setTimeout(() => {
+          navigate('/login', { replace: true });
+        }, 1500);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, refresh]);
 
   return (
     <div className="page page-center">
