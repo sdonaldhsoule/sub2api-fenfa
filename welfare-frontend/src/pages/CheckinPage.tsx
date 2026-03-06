@@ -150,10 +150,10 @@ export function CheckinPage() {
               <div className="stat-value warning">{status.daily_reward_balance}</div>
             </div>
             <div className="stat-card">
+              <div className="stat-label">签到状态</div>
               <div className={`stat-value ${status.checked_in ? 'success' : ''}`}>
                 {checkinStatusText(status)}
               </div>
-              <div className="stat-label">签到状态</div>
             </div>
           </div>
         )}
