@@ -1,13 +1,18 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { buildLinuxDoStartUrl } from '../lib/api';
 import { Icon } from '../components/Icon';
 
 export function LoginPage() {
+  const location = useLocation();
   const { status } = useAuth();
+  const redirectPath =
+    typeof (location.state as { from?: unknown } | null)?.from === 'string'
+      ? (location.state as { from: string }).from
+      : '/checkin';
 
   if (status === 'authenticated') {
-    return <Navigate to="/checkin" replace />;
+    return <Navigate to={redirectPath} replace />;
   }
 
   return (
@@ -49,7 +54,7 @@ export function LoginPage() {
           </div>
         </div>
 
-        <a className="button primary wide" href={buildLinuxDoStartUrl('/checkin')}>
+        <a className="button primary wide" href={buildLinuxDoStartUrl(redirectPath)}>
           使用 LinuxDo 登录 →
         </a>
       </div>

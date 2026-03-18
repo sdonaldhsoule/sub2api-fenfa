@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS welfare_checkins (
   grant_error TEXT NOT NULL DEFAULT '',
   sub2api_request_id TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT welfare_checkins_unique_user_day UNIQUE (sub2api_user_id, checkin_date),
   CONSTRAINT welfare_checkins_status_valid CHECK (grant_status IN ('pending', 'success', 'failed'))
 );
@@ -39,4 +40,3 @@ CREATE TABLE IF NOT EXISTS welfare_checkins (
 CREATE INDEX IF NOT EXISTS idx_welfare_checkins_date ON welfare_checkins (checkin_date DESC);
 CREATE INDEX IF NOT EXISTS idx_welfare_checkins_created ON welfare_checkins (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_welfare_checkins_subject ON welfare_checkins (linuxdo_subject);
-

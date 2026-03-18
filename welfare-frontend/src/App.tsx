@@ -17,16 +17,60 @@ function AuthLoadingScreen() {
   );
 }
 
-function RequireAuth({ children }: { children: JSX.Element }) {
+function AuthErrorScreen() {
+  const { error, refresh } = useAuth();
+
+  return (
+    <div className="page page-center">
+      <div className="card auth-card">
+        <span className="eyebrow">身份验证</span>
+        <h1 className="hero-title">会话校验失败</h1>
+        <p className="alert error">{error || '服务暂时不可用，请稍后重试'}</p>
+        <button
+          className="button primary wide"
+          onClick={() => {
+            void refresh().catch((refreshError) => {
+              console.error('[auth] 手动重试会话失败', refreshError);
+            });
+          }}
+        >
+          重试校验
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RequireAuth({
+  children,
+  requireAdmin = false
+}: {
+  children: JSX.Element;
+  requireAdmin?: boolean;
+}) {
   const location = useLocation();
-  const { status } = useAuth();
+  const { status, user } = useAuth();
 
   if (status === 'loading') {
     return <AuthLoadingScreen />;
   }
 
+  if (status === 'error') {
+    return <AuthErrorScreen />;
+  }
+
   if (status === 'unauthenticated') {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
+  }
+
+  if (requireAdmin && !user?.is_admin) {
+    return <Navigate to="/checkin" replace />;
   }
 
   return children;
@@ -48,7 +92,7 @@ export default function App() {
       <Route
         path="/admin"
         element={
-          <RequireAuth>
+          <RequireAuth requireAdmin>
             <AdminPage />
           </RequireAuth>
         }

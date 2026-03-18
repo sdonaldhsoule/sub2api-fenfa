@@ -1,12 +1,15 @@
+import { config } from '../config.js';
 import { pool } from '../db.js';
 import { WelfareRepository } from '../repositories/welfare-repository.js';
 import type { CheckinRecord, SessionUser } from '../types/domain.js';
-import { getBusinessDate } from '../utils/date.js';
+import { getBusinessDate, shiftDateString } from '../utils/date.js';
 import { Sub2apiClient, sub2apiClient } from './sub2api-client.js';
 
 export class ConflictError extends Error {}
 export class ForbiddenError extends Error {}
 export class NotFoundError extends Error {}
+
+const PENDING_RECOVERY_AFTER_MS = Math.max(30_000, config.SUB2API_TIMEOUT_MS * 2);
 
 function buildIdempotencyKey(sub2apiUserId: number, checkinDate: string): string {
   return `welfare-checkin:${sub2apiUserId}:${checkinDate}`;
@@ -21,6 +24,7 @@ type WelfareRepositoryLike = Pick<
   | 'getCheckinById'
   | 'createCheckinPending'
   | 'markCheckinPendingRetry'
+  | 'claimStalePending'
   | 'markCheckinSuccess'
   | 'markCheckinFailed'
   | 'listUserCheckins'
@@ -34,6 +38,35 @@ type Sub2apiClientLike = Pick<Sub2apiClient, 'addUserBalance'>;
 
 function buildGrantNotes(checkinDate: string): string {
   return `福利签到 ${checkinDate}`;
+}
+
+function isPendingRecoverable(record: CheckinRecord): boolean {
+  if (record.grantStatus !== 'pending') {
+    return false;
+  }
+
+  const updatedAtMs = Date.parse(record.updatedAt);
+  if (Number.isNaN(updatedAtMs)) {
+    return true;
+  }
+
+  return Date.now() - updatedAtMs >= PENDING_RECOVERY_AFTER_MS;
+}
+
+function canAttemptCheckin(record: CheckinRecord | null): boolean {
+  if (!record) {
+    return true;
+  }
+
+  if (record.grantStatus === 'success') {
+    return false;
+  }
+
+  if (record.grantStatus === 'failed') {
+    return true;
+  }
+
+  return isPendingRecoverable(record);
 }
 
 export class CheckinService {
@@ -53,6 +86,7 @@ export class CheckinService {
       checkin_date: checkinDate,
       daily_reward_balance: settings.dailyRewardBalance,
       checked_in: today?.grantStatus === 'success',
+      can_checkin: settings.checkinEnabled && canAttemptCheckin(today),
       grant_status: today?.grantStatus ?? null,
       checked_at: today?.createdAt ?? null,
       reward_balance: today?.rewardBalance ?? null
@@ -95,22 +129,13 @@ export class CheckinService {
       if (!existing) {
         throw new Error('签到记录读取失败，请稍后重试');
       }
-      if (existing.grantStatus === 'success') {
-        throw new ConflictError('今日已签到，请明天再来');
-      }
-      if (existing.grantStatus === 'pending') {
-        throw new ConflictError('签到处理中，请稍后刷新');
-      }
-      pending = await this.repository.markCheckinPendingRetry(existing.id, reward);
-      if (!pending) {
-        throw new ConflictError('签到处理中，请稍后刷新');
-      }
+      pending = await this.claimRetryableCheckin(existing, '今日已签到，请明天再来');
     }
 
     const grantResult = await this.grantCheckin(pending);
     return {
       checkin_date: checkinDate,
-      reward_balance: reward,
+      reward_balance: pending.rewardBalance,
       new_balance: grantResult.newBalance,
       grant_status: 'success'
     };
@@ -121,20 +146,11 @@ export class CheckinService {
     if (!existing) {
       throw new NotFoundError('签到记录不存在');
     }
-    if (existing.grantStatus === 'success') {
-      throw new ConflictError('该签到记录已发放成功');
-    }
-    if (existing.grantStatus === 'pending') {
-      throw new ConflictError('该签到记录正在处理中');
-    }
 
-    const pending = await this.repository.markCheckinPendingRetry(
-      existing.id,
-      existing.rewardBalance
+    const pending = await this.claimRetryableCheckin(
+      existing,
+      '该签到记录已发放成功'
     );
-    if (!pending) {
-      throw new ConflictError('该签到记录状态已变化，请刷新后重试');
-    }
 
     const grantResult = await this.grantCheckin(pending);
     const updated = await this.repository.getCheckinById(pending.id);
@@ -149,23 +165,30 @@ export class CheckinService {
   }
 
   private async grantCheckin(record: CheckinRecord) {
+    let grantResult: Awaited<ReturnType<Sub2apiClientLike['addUserBalance']>>;
+
     try {
-      const grantResult = await this.sub2api.addUserBalance({
+      grantResult = await this.sub2api.addUserBalance({
         userId: record.sub2apiUserId,
         amount: record.rewardBalance,
         notes: buildGrantNotes(record.checkinDate),
         idempotencyKey: record.idempotencyKey
       });
-      await this.repository.markCheckinSuccess(record.id, grantResult.requestId);
-      return {
-        newBalance: grantResult.newBalance ?? null,
-        requestId: grantResult.requestId
-      };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
-      await this.repository.markCheckinFailed(record.id, message.slice(0, 500));
+      try {
+        await this.repository.markCheckinFailed(record.id, message.slice(0, 500));
+      } catch (markFailedError) {
+        console.error('[checkin] 回写失败状态异常', markFailedError);
+      }
       throw error;
     }
+
+    await this.repository.markCheckinSuccess(record.id, grantResult.requestId);
+    return {
+      newBalance: grantResult.newBalance ?? null,
+      requestId: grantResult.requestId
+    };
   }
 
   async getAdminSettings() {
@@ -181,9 +204,12 @@ export class CheckinService {
   }
 
   async getAdminDailyStats(days: number) {
+    const settings = await this.repository.getSettings();
+    const today = getBusinessDate(settings.timezone);
+    const startDate = shiftDateString(today, -(days - 1));
     const [points, activeUsers] = await Promise.all([
-      this.repository.getDailyStats(days),
-      this.repository.getActiveUserCount(days)
+      this.repository.getDailyStats(startDate),
+      this.repository.getActiveUserCount(startDate)
     ]);
     const totalUsers = points.reduce((sum, point) => sum + point.checkinUsers, 0);
     const totalGrant = points.reduce((sum, point) => sum + point.grantTotal, 0);
@@ -205,6 +231,37 @@ export class CheckinService {
     subject?: string;
   }) {
     return this.repository.queryAdminCheckins(params);
+  }
+
+  private async claimRetryableCheckin(
+    existing: CheckinRecord,
+    successConflictMessage: string
+  ): Promise<CheckinRecord> {
+    if (existing.grantStatus === 'success') {
+      throw new ConflictError(successConflictMessage);
+    }
+
+    if (existing.grantStatus === 'failed') {
+      const pending = await this.repository.markCheckinPendingRetry(existing.id);
+      if (!pending) {
+        throw new ConflictError('签到处理中，请稍后刷新');
+      }
+      return pending;
+    }
+
+    if (!isPendingRecoverable(existing)) {
+      throw new ConflictError('签到处理中，请稍后刷新');
+    }
+
+    const pending = await this.repository.claimStalePending(
+      existing.id,
+      PENDING_RECOVERY_AFTER_MS
+    );
+    if (!pending) {
+      throw new ConflictError('签到处理中，请稍后刷新');
+    }
+
+    return pending;
   }
 }
 

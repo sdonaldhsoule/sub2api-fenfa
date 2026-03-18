@@ -12,36 +12,53 @@ import {
 import type { SessionUser } from '../types';
 import { api, isUnauthorizedError } from './api';
 
-type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error';
 
 interface AuthContextValue {
   status: AuthStatus;
   user: SessionUser | null;
+  error: string | null;
   refresh: () => Promise<SessionUser | null>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim() !== '') {
+    return error.message;
+  }
+  return '服务暂时不可用，请稍后重试';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const refreshPromiseRef = useRef<Promise<SessionUser | null> | null>(null);
 
   const refresh = useCallback(async (): Promise<SessionUser | null> => {
     if (!refreshPromiseRef.current) {
+      setError(null);
+      setStatus((current) => (current === 'authenticated' ? current : 'loading'));
+
       refreshPromiseRef.current = (async () => {
         try {
           const currentUser = await api.getMe();
           setUser(currentUser);
+          setError(null);
           setStatus('authenticated');
           return currentUser;
         } catch (error) {
           if (isUnauthorizedError(error)) {
             setUser(null);
+            setError(null);
             setStatus('unauthenticated');
             return null;
           }
+          setUser(null);
+          setError(toErrorMessage(error));
+          setStatus('error');
           throw error;
         } finally {
           refreshPromiseRef.current = null;
@@ -49,16 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })();
     }
 
-    try {
-      return await refreshPromiseRef.current;
-    } catch (error) {
-      if (isUnauthorizedError(error)) {
-        setUser(null);
-        setStatus('unauthenticated');
-        return null;
-      }
-      throw error;
-    }
+    return await refreshPromiseRef.current;
   }, []);
 
   const logout = useCallback(async () => {
@@ -68,14 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 无论后端退出接口是否成功，都以本地会话状态为准。
     }
     setUser(null);
+    setError(null);
     setStatus('unauthenticated');
   }, []);
 
   useEffect(() => {
     void refresh().catch((error) => {
       console.error('[auth] 刷新会话失败', error);
-      setUser(null);
-      setStatus('unauthenticated');
     });
   }, [refresh]);
 
@@ -83,10 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       status,
       user,
+      error,
       refresh,
       logout
     }),
-    [logout, refresh, status, user]
+    [error, logout, refresh, status, user]
   );
 
   return createElement(AuthContext.Provider, { value }, children);

@@ -24,5 +24,5 @@ export interface CheckinRecord {
   grantError: string;
   sub2apiRequestId: string;
   createdAt: string;
+  updatedAt: string;
 }
-

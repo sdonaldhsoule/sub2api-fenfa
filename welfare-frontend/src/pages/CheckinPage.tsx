@@ -17,6 +17,16 @@ function renderGrantTag(status: CheckinHistoryItem['grant_status']) {
   return <span className={`status-tag ${status}`}>{label}</span>;
 }
 
+function getCheckinButtonText(status: CheckinStatus | null, submitting: boolean): string {
+  if (submitting) return '签到中...';
+  if (!status) return '立即签到';
+  if (status.checked_in) return '今日已签到';
+  if (status.grant_status === 'pending' && !status.can_checkin) return '处理中...';
+  if (status.grant_status === 'pending' && status.can_checkin) return '重新处理签到';
+  if (status.grant_status === 'failed') return '重新签到';
+  return '立即签到';
+}
+
 export function CheckinPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -59,7 +69,7 @@ export function CheckinPage() {
 
   const canCheckin = useMemo(() => {
     if (!status) return false;
-    return status.checkin_enabled && !status.checked_in && !submitting;
+    return status.checkin_enabled && status.can_checkin && !submitting;
   }, [status, submitting]);
 
   async function handleCheckin() {
@@ -161,12 +171,12 @@ export function CheckinPage() {
         <div className="row section-bar">
           <h2 className="section-title">签到操作</h2>
           <button className="button primary" disabled={!canCheckin} onClick={handleCheckin}>
-            {submitting ? (
+            {getCheckinButtonText(status, submitting) === '签到中...' ? (
               '签到中...'
             ) : (
               <span className="button-content">
                 <Icon name="gift" className="icon" size={16} />
-                <span>立即签到</span>
+                <span>{getCheckinButtonText(status, submitting)}</span>
               </span>
             )}
           </button>

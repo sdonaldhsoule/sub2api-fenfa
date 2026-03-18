@@ -20,6 +20,7 @@ export interface CheckinStatus {
   checkin_date: string;
   daily_reward_balance: number;
   checked_in: boolean;
+  can_checkin: boolean;
   grant_status: 'pending' | 'success' | 'failed' | null;
   checked_at: string | null;
   reward_balance: number | null;

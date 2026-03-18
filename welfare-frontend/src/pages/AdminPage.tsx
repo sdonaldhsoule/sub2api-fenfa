@@ -33,6 +33,7 @@ export function AdminPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [settings, setSettings] = useState<AdminSettings | null>(null);
+  const [dailyRewardInput, setDailyRewardInput] = useState('');
   const [stats, setStats] = useState<DailyStats | null>(null);
   const [checkinList, setCheckinList] = useState<AdminCheckinList | null>(null);
   const [checkinFilters, setCheckinFilters] = useState<AdminCheckinQuery>(defaultCheckinFilters);
@@ -58,6 +59,7 @@ export function AdminPage() {
     try {
       const overview = await api.getAdminOverview();
       setSettings(overview.settings);
+      setDailyRewardInput(String(overview.settings.daily_reward_balance));
       setStats(overview.stats);
       setWhitelist(overview.whitelist);
     } catch (err) {
@@ -89,21 +91,38 @@ export function AdminPage() {
   }
 
   useEffect(() => {
+    if (!user?.is_admin) {
+      return;
+    }
     void loadOverview();
-  }, []);
+  }, [user?.is_admin]);
 
   useEffect(() => {
+    if (!user?.is_admin) {
+      return;
+    }
     void loadCheckins(checkinFilters);
-  }, [checkinFilters]);
+  }, [checkinFilters, user?.is_admin]);
 
   async function saveSettings() {
     if (!settings) return;
+    const parsedReward = Number(dailyRewardInput);
+    if (!Number.isFinite(parsedReward) || parsedReward <= 0) {
+      setError('每日奖励余额必须大于 0');
+      setMessage('');
+      return;
+    }
+
     setSaving(true);
     setError('');
     setMessage('');
     try {
-      const updated = await api.updateAdminSettings(settings);
+      const updated = await api.updateAdminSettings({
+        ...settings,
+        daily_reward_balance: parsedReward
+      });
       setSettings(updated);
+      setDailyRewardInput(String(updated.daily_reward_balance));
       setMessage('设置保存成功');
     } catch (err) {
       if (isUnauthorizedError(err)) {
@@ -302,10 +321,8 @@ export function AdminPage() {
                   type="number"
                   step="0.01"
                   min="0.01"
-                  value={settings.daily_reward_balance}
-                  onChange={(event) =>
-                    setSettings({ ...settings, daily_reward_balance: Number(event.target.value) })
-                  }
+                  value={dailyRewardInput}
+                  onChange={(event) => setDailyRewardInput(event.target.value)}
                 />
               </label>
               <label className="field">
@@ -484,13 +501,17 @@ export function AdminPage() {
                     </div>
 
                     <div className="actions admin-checkin-actions">
-                      {item.grantStatus === 'failed' ? (
+                      {item.grantStatus !== 'success' ? (
                         <button
                           className="button danger"
                           onClick={() => retryCheckin(item.id)}
                           disabled={retryingId === item.id}
                         >
-                          {retryingId === item.id ? '补发中...' : '重试补发'}
+                          {retryingId === item.id
+                            ? '补发中...'
+                            : item.grantStatus === 'pending'
+                              ? '接管重试'
+                              : '重试补发'}
                         </button>
                       ) : (
                         <span className="muted admin-checkin-meta">无需补发</span>

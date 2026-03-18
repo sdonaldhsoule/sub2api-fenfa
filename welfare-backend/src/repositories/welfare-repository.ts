@@ -189,18 +189,33 @@ export class WelfareRepository {
   }
 
   async markCheckinPendingRetry(
-    id: number,
-    rewardBalance: number
+    id: number
   ): Promise<CheckinRecord | null> {
     const result = await this.db.query(
       `UPDATE welfare_checkins
        SET grant_status = 'pending',
-           reward_balance = $2,
            grant_error = '',
-           sub2api_request_id = ''
+           sub2api_request_id = '',
+           updated_at = NOW()
        WHERE id = $1 AND grant_status = 'failed'
        RETURNING *`,
-      [id, rewardBalance]
+      [id]
+    );
+    return result.rowCount ? this.mapCheckin(result.rows[0]) : null;
+  }
+
+  async claimStalePending(
+    id: number,
+    staleAfterMs: number
+  ): Promise<CheckinRecord | null> {
+    const result = await this.db.query(
+      `UPDATE welfare_checkins
+       SET updated_at = NOW()
+       WHERE id = $1
+         AND grant_status = 'pending'
+         AND updated_at <= NOW() - ($2::int * INTERVAL '1 millisecond')
+       RETURNING *`,
+      [id, staleAfterMs]
     );
     return result.rowCount ? this.mapCheckin(result.rows[0]) : null;
   }
@@ -213,7 +228,8 @@ export class WelfareRepository {
       `UPDATE welfare_checkins
        SET grant_status = 'success',
            grant_error = '',
-           sub2api_request_id = $2
+           sub2api_request_id = $2,
+           updated_at = NOW()
        WHERE id = $1`,
       [id, requestId]
     );
@@ -223,7 +239,8 @@ export class WelfareRepository {
     await this.db.query(
       `UPDATE welfare_checkins
        SET grant_status = 'failed',
-           grant_error = $2
+           grant_error = $2,
+           updated_at = NOW()
        WHERE id = $1`,
       [id, errorText]
     );
@@ -297,7 +314,7 @@ export class WelfareRepository {
     };
   }
 
-  async getDailyStats(days: number): Promise<
+  async getDailyStats(startDate: string): Promise<
     Array<{
       checkinDate: string;
       checkinUsers: number;
@@ -310,10 +327,10 @@ export class WelfareRepository {
               COALESCE(SUM(reward_balance), 0)::text AS grant_total
        FROM welfare_checkins
        WHERE grant_status = 'success'
-         AND checkin_date >= CURRENT_DATE - ($1::int - 1)
+         AND checkin_date >= $1::date
        GROUP BY checkin_date
        ORDER BY checkin_date ASC`,
-      [days]
+      [startDate]
     );
 
     return result.rows.map((row) => ({
@@ -323,13 +340,13 @@ export class WelfareRepository {
     }));
   }
 
-  async getActiveUserCount(days: number): Promise<number> {
+  async getActiveUserCount(startDate: string): Promise<number> {
     const result = await this.db.query<{ total: string }>(
       `SELECT COUNT(DISTINCT sub2api_user_id)::text AS total
        FROM welfare_checkins
        WHERE grant_status = 'success'
-         AND checkin_date >= CURRENT_DATE - ($1::int - 1)`,
-      [days]
+         AND checkin_date >= $1::date`,
+      [startDate]
     );
 
     return Number(result.rows[0]?.total ?? 0);
@@ -362,7 +379,8 @@ export class WelfareRepository {
       grantStatus: String(row.grant_status) as CheckinRecord['grantStatus'],
       grantError: String(row.grant_error ?? ''),
       sub2apiRequestId: String(row.sub2api_request_id ?? ''),
-      createdAt: String(row.created_at)
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at ?? row.created_at)
     };
   }
 }

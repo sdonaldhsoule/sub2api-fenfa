@@ -9,8 +9,70 @@ const booleanFromString = z.preprocess((value) => {
   if (typeof value !== 'string') return value;
   const normalized = value.trim().toLowerCase();
   if (normalized === '') return undefined;
-  return ['1', 'true', 'yes', 'on'].includes(normalized);
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+  return value;
 }, z.boolean().optional());
+
+function parseDurationMs(value: string, fieldName: string): number {
+  const normalized = value.trim().toLowerCase();
+  const match = normalized.match(
+    /^(\d+(?:\.\d+)?)\s*(ms|msec|msecs|millisecond|milliseconds|s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|week|weeks|y|yr|yrs|year|years)?$/
+  );
+
+  if (!match) {
+    throw new Error(
+      `${fieldName} 格式非法，支持如 15m、24h、7d、30s 或 5000ms`
+    );
+  }
+
+  const amount = Number(match[1]);
+  const unit = match[2] ?? 'ms';
+  const multiplierMap: Record<string, number> = {
+    ms: 1,
+    msec: 1,
+    msecs: 1,
+    millisecond: 1,
+    milliseconds: 1,
+    s: 1000,
+    sec: 1000,
+    secs: 1000,
+    second: 1000,
+    seconds: 1000,
+    m: 60 * 1000,
+    min: 60 * 1000,
+    mins: 60 * 1000,
+    minute: 60 * 1000,
+    minutes: 60 * 1000,
+    h: 60 * 60 * 1000,
+    hr: 60 * 60 * 1000,
+    hrs: 60 * 60 * 1000,
+    hour: 60 * 60 * 1000,
+    hours: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
+    day: 24 * 60 * 60 * 1000,
+    days: 24 * 60 * 60 * 1000,
+    w: 7 * 24 * 60 * 60 * 1000,
+    week: 7 * 24 * 60 * 60 * 1000,
+    weeks: 7 * 24 * 60 * 60 * 1000,
+    y: 365 * 24 * 60 * 60 * 1000,
+    yr: 365 * 24 * 60 * 60 * 1000,
+    yrs: 365 * 24 * 60 * 60 * 1000,
+    year: 365 * 24 * 60 * 60 * 1000,
+    years: 365 * 24 * 60 * 60 * 1000
+  };
+  const multiplier = multiplierMap[unit];
+
+  if (!Number.isFinite(amount) || amount <= 0 || !multiplier) {
+    throw new Error(`${fieldName} 必须是大于 0 的合法时长`);
+  }
+
+  return Math.round(amount * multiplier);
+}
 
 const configSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -70,6 +132,11 @@ if (
   );
 }
 
+const jwtMaxAgeMs = parseDurationMs(
+  raw.WELFARE_JWT_EXPIRES_IN,
+  'WELFARE_JWT_EXPIRES_IN'
+);
+
 const frontendOrigin = normalizeOrigin(raw.WELFARE_FRONTEND_URL, 'WELFARE_FRONTEND_URL');
 const configuredCorsOrigins = raw.WELFARE_CORS_ORIGINS.split(',')
   .map((item) => item.trim())
@@ -81,6 +148,7 @@ const bootstrapAdminSubjects = raw.BOOTSTRAP_ADMIN_SUBJECTS.split(',')
 
 export const config = {
   ...raw,
+  WELFARE_JWT_MAX_AGE_MS: jwtMaxAgeMs,
   WELFARE_FRONTEND_ORIGIN: frontendOrigin,
   WELFARE_CORS_ORIGINS:
     configuredCorsOrigins.length > 0 ? configuredCorsOrigins : [frontendOrigin],

@@ -20,7 +20,7 @@ function parseParams(...inputs: string[]): Record<string, string> {
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
-  const { status, user } = useAuth();
+  const { status, user, error: authError } = useAuth();
   const [message, setMessage] = useState('正在处理登录回调...');
   const [isError, setIsError] = useState(false);
   const params = useMemo(
@@ -54,6 +54,12 @@ export function AuthCallbackPage() {
       return;
     }
 
+    if (status === 'error') {
+      setIsError(true);
+      setMessage(`登录状态校验失败：${authError || '服务暂时不可用，请稍后重试'}`);
+      return;
+    }
+
     setIsError(true);
     setMessage('登录失败：未建立有效会话');
     const timeout = window.setTimeout(() => {
@@ -62,7 +68,7 @@ export function AuthCallbackPage() {
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [detail, error, navigate, redirect, status, user]);
+  }, [authError, detail, error, navigate, redirect, status, user]);
 
   return (
     <div className="page page-center">
@@ -70,6 +76,15 @@ export function AuthCallbackPage() {
         <span className="eyebrow">身份认证</span>
         <h1 className="hero-title">登录回调</h1>
         <p className={isError ? 'alert error' : 'alert success'}>{message}</p>
+        {isError && (
+          <button
+            className="button"
+            style={{ marginTop: 12 }}
+            onClick={() => navigate('/login', { replace: true })}
+          >
+            返回登录
+          </button>
+        )}
       </div>
     </div>
   );

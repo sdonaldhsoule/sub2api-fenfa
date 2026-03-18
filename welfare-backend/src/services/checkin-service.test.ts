@@ -22,6 +22,7 @@ function createRepositoryMock() {
     getCheckinById: vi.fn(),
     createCheckinPending: vi.fn(),
     markCheckinPendingRetry: vi.fn(),
+    claimStalePending: vi.fn(),
     markCheckinSuccess: vi.fn(),
     markCheckinFailed: vi.fn(),
     listUserCheckins: vi.fn(),
@@ -50,7 +51,8 @@ function createFailedRecord(): CheckinRecord {
     grantStatus: 'failed',
     grantError: 'network timeout',
     sub2apiRequestId: '',
-    createdAt: '2026-03-06T10:00:00.000Z'
+    createdAt: '2026-03-06T10:00:00.000Z',
+    updatedAt: '2026-03-06T10:00:00.000Z'
   };
 }
 
@@ -90,8 +92,7 @@ describe('checkin service retryFailedCheckin', () => {
     const result = await service.retryFailedCheckin(failedRecord.id);
 
     expect(repository.markCheckinPendingRetry).toHaveBeenCalledWith(
-      failedRecord.id,
-      failedRecord.rewardBalance
+      failedRecord.id
     );
     expect(sub2api.addUserBalance).toHaveBeenCalledWith({
       userId: failedRecord.sub2apiUserId,
@@ -145,5 +146,123 @@ describe('checkin service retryFailedCheckin', () => {
 
     await expect(service.retryFailedCheckin(7)).rejects.toBeInstanceOf(ConflictError);
     expect(repository.markCheckinPendingRetry).not.toHaveBeenCalled();
+  });
+
+  it('普通签到重试失败记录时保留原始奖励值', async () => {
+    const failedRecord = createFailedRecord();
+    const pendingRecord: CheckinRecord = {
+      ...failedRecord,
+      grantStatus: 'pending',
+      grantError: ''
+    };
+
+    repository.getSettings.mockResolvedValue({
+      checkinEnabled: true,
+      dailyRewardBalance: 20,
+      timezone: 'Asia/Shanghai'
+    });
+    repository.createCheckinPending.mockResolvedValue(null);
+    repository.getCheckinByDate.mockResolvedValue(failedRecord);
+    repository.markCheckinPendingRetry.mockResolvedValue(pendingRecord);
+    repository.markCheckinSuccess.mockResolvedValue(undefined);
+    sub2api.addUserBalance.mockResolvedValue({
+      newBalance: 108,
+      requestId: 'req-keep-reward'
+    });
+
+    const result = await service.checkin({
+      sub2apiUserId: failedRecord.sub2apiUserId,
+      linuxdoSubject: failedRecord.linuxdoSubject,
+      syntheticEmail: failedRecord.syntheticEmail,
+      username: 'tester',
+      avatarUrl: null
+    });
+
+    expect(repository.markCheckinPendingRetry).toHaveBeenCalledWith(failedRecord.id);
+    expect(sub2api.addUserBalance).toHaveBeenCalledWith({
+      userId: failedRecord.sub2apiUserId,
+      amount: failedRecord.rewardBalance,
+      notes: `福利签到 ${failedRecord.checkinDate}`,
+      idempotencyKey: failedRecord.idempotencyKey
+    });
+    expect(result.reward_balance).toBe(failedRecord.rewardBalance);
+  });
+
+  it('普通签到会接管超时 pending 记录', async () => {
+    const stalePending: CheckinRecord = {
+      ...createFailedRecord(),
+      grantStatus: 'pending',
+      grantError: '',
+      updatedAt: '2026-03-06T09:00:00.000Z'
+    };
+    const recoveredPending: CheckinRecord = {
+      ...stalePending,
+      updatedAt: '2026-03-06T10:00:00.000Z'
+    };
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-06T10:01:00.000Z'));
+
+    repository.getSettings.mockResolvedValue({
+      checkinEnabled: true,
+      dailyRewardBalance: stalePending.rewardBalance,
+      timezone: 'UTC'
+    });
+    repository.createCheckinPending.mockResolvedValue(null);
+    repository.getCheckinByDate.mockResolvedValue(stalePending);
+    repository.claimStalePending.mockResolvedValue(recoveredPending);
+    repository.markCheckinSuccess.mockResolvedValue(undefined);
+    sub2api.addUserBalance.mockResolvedValue({
+      newBalance: 99,
+      requestId: 'req-stale-pending'
+    });
+
+    const result = await service.checkin({
+      sub2apiUserId: stalePending.sub2apiUserId,
+      linuxdoSubject: stalePending.linuxdoSubject,
+      syntheticEmail: stalePending.syntheticEmail,
+      username: 'tester',
+      avatarUrl: null
+    });
+
+    expect(repository.claimStalePending).toHaveBeenCalledWith(stalePending.id, 30000);
+    expect(result.grant_status).toBe('success');
+
+    vi.useRealTimers();
+  });
+
+  it('普通签到遇到未超时 pending 记录时继续阻止重试', async () => {
+    const freshPending: CheckinRecord = {
+      ...createFailedRecord(),
+      grantStatus: 'pending',
+      grantError: '',
+      updatedAt: '2026-03-06T10:00:45.000Z'
+    };
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-06T10:01:00.000Z'));
+
+    repository.getSettings.mockResolvedValue({
+      checkinEnabled: true,
+      dailyRewardBalance: freshPending.rewardBalance,
+      timezone: 'UTC'
+    });
+    repository.createCheckinPending.mockResolvedValue(null);
+    repository.getCheckinByDate.mockResolvedValue(freshPending);
+
+    await expect(
+      service.checkin({
+        sub2apiUserId: freshPending.sub2apiUserId,
+        linuxdoSubject: freshPending.linuxdoSubject,
+        syntheticEmail: freshPending.syntheticEmail,
+        username: 'tester',
+        avatarUrl: null
+      })
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    expect(repository.claimStalePending).not.toHaveBeenCalled();
+    expect(sub2api.addUserBalance).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
   });
 });

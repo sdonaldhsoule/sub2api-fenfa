@@ -28,3 +28,12 @@ export function getBusinessDate(timezone: string, date = new Date()): string {
   return getFormatter(timezone).format(date);
 }
 
+export function shiftDateString(dateString: string, days: number): string {
+  const date = new Date(`${dateString}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`非法日期字符串: ${dateString}`);
+  }
+
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
