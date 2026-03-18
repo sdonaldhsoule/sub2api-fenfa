@@ -5,6 +5,14 @@
 - `welfare-backend`：签到业务、LinuxDo 登录、管理员配置
 - `welfare-frontend`：签到页与管理后台页
 
+## 当前版本补充
+
+- 后端已加入**超时 `pending` 签到恢复机制**，异常中断后不再只能手工改库
+- 签到失败重试会保留**原始奖励额度**，避免奖励随配置漂移
+- 管理后台统计按**业务时区**计算，不再受数据库时区影响
+- 前端已补上**管理员路由守卫**、**登录后原路返回**和**会话错误态**
+- 前后端都已补充自动化测试入口
+
 ## 架构说明
 
 核心设计是“零侵入 sub2api”：
@@ -46,6 +54,24 @@ cd welfare-frontend
 cp .env.example .env
 npm install
 npm run dev
+```
+
+## 测试与构建
+
+后端：
+
+```bash
+cd welfare-backend
+npm test
+npm run build
+```
+
+前端：
+
+```bash
+cd welfare-frontend
+npm test
+npm run build
 ```
 
 ## 对接要点
