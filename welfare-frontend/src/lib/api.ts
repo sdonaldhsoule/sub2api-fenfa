@@ -64,8 +64,7 @@ async function request<T>(
 
   const response = await fetch(`${apiBase}${path}`, {
     ...init,
-    headers,
-    credentials: 'include'
+    headers
   });
 
   const rawBody = await response.text();

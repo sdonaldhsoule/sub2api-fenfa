@@ -24,7 +24,7 @@ describe('requireAuth', () => {
     vi.mocked(sessionService.verify).mockReset();
   });
 
-  it('优先使用 Cookie 中的会话 token', () => {
+  it('使用 Authorization header 中的 Bearer token 进行认证', () => {
     vi.mocked(sessionService.verify).mockReturnValue({
       sub2apiUserId: 1,
       linuxdoSubject: 'subject',
@@ -34,30 +34,6 @@ describe('requireAuth', () => {
     });
 
     const req = {
-      cookies: {
-        welfare_token: 'cookie-token'
-      },
-      header: vi.fn().mockReturnValue('Bearer header-token')
-    } as unknown as Request;
-    const res = createResponse();
-
-    requireAuth(req, res, next);
-
-    expect(sessionService.verify).toHaveBeenCalledWith('cookie-token');
-    expect(next).toHaveBeenCalledTimes(1);
-  });
-
-  it('在 Cookie 缺失时回退到 Authorization 头', () => {
-    vi.mocked(sessionService.verify).mockReturnValue({
-      sub2apiUserId: 1,
-      linuxdoSubject: 'subject',
-      syntheticEmail: 'linuxdo-subject@linuxdo-connect.invalid',
-      username: 'tester',
-      avatarUrl: null
-    });
-
-    const req = {
-      cookies: {},
       header: vi.fn().mockReturnValue('Bearer header-token')
     } as unknown as Request;
     const res = createResponse();
@@ -66,5 +42,17 @@ describe('requireAuth', () => {
 
     expect(sessionService.verify).toHaveBeenCalledWith('header-token');
     expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('在 Authorization header 缺失时返回 401', () => {
+    const req = {
+      header: vi.fn().mockReturnValue(undefined)
+    } as unknown as Request;
+    const res = createResponse();
+
+    requireAuth(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
   });
 });

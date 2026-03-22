@@ -19,7 +19,6 @@ import {
 } from '../utils/oauth.js';
 
 const LINUXDO_COOKIE_NAME = 'welfare_oauth_state';
-const SESSION_COOKIE_NAME = 'welfare_token';
 const COOKIE_MAX_AGE_MS = 10 * 60 * 1000;
 const SESSION_HANDOFF_MAX_AGE_MS = 60 * 1000;
 
@@ -160,13 +159,8 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
       avatarUrl: profile.avatarUrl
     });
 
-    res.cookie(SESSION_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: config.WELFARE_COOKIE_SECURE,
-      sameSite: config.WELFARE_SESSION_COOKIE_SAME_SITE,
-      maxAge: config.WELFARE_JWT_MAX_AGE_MS,
-      path: '/'
-    });
+    // 不再设置 session cookie，完全通过 handoff → localStorage → Authorization header 传递 token，
+    // 避免跨域 cookie 和 Firefox cookie partition 问题
     res.clearCookie(LINUXDO_COOKIE_NAME, {
       path: '/api/auth/linuxdo'
     });
@@ -232,8 +226,6 @@ authRouter.get('/me', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 authRouter.post('/logout', (_req, res) => {
-  res.clearCookie(SESSION_COOKIE_NAME, {
-    path: '/'
-  });
+  // 不再需要清除 session cookie，前端负责清除 localStorage 中的 token
   ok(res, { message: '已退出登录' });
 });

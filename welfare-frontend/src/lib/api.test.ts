@@ -41,6 +41,6 @@ describe('api request', () => {
     const [, init] = fetchMock.mock.calls[0];
     const headers = init.headers as Headers;
     expect(headers.get('Authorization')).toBe('Bearer session-token');
-    expect(init.credentials).toBe('include');
+    expect(init.credentials).toBeUndefined();
   });
 });

@@ -2,11 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { sessionService } from '../services/session-service.js';
 
 function extractToken(req: Request): string | null {
-  const cookieToken = req.cookies?.welfare_token;
-  if (typeof cookieToken === 'string' && cookieToken.trim() !== '') {
-    return cookieToken;
-  }
-
+  // Authorization header 优先，避免跨域 cookie 和 Firefox cookie partition 问题
   const authHeader = req.header('Authorization')?.trim();
   if (authHeader) {
     const [scheme, token] = authHeader.split(/\s+/);
