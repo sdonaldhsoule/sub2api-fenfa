@@ -1047,17 +1047,23 @@ h3 {
 }
 
 .admin-dashboard-sidebar {
+  position: sticky;
+  top: 18px;
+  align-self: start;
   padding: 24px 20px;
   background:
-    radial-gradient(circle at top left, rgba(255, 158, 66, 0.28), transparent 35%),
-    linear-gradient(180deg, rgba(18, 20, 26, 0.96), rgba(25, 28, 36, 0.94));
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 26px 60px rgba(11, 14, 20, 0.22);
-  color: #f8f1e8;
-  min-height: calc(100vh - 70px);
+    radial-gradient(circle at top left, rgba(139, 92, 246, 0.12), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(20, 184, 166, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.6));
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow: 0 28px 54px rgba(15, 23, 42, 0.09);
+  color: var(--ink-0);
+  min-height: calc(100vh - 36px);
+  max-height: calc(100vh - 36px);
   display: flex;
   flex-direction: column;
   gap: 24px;
+  backdrop-filter: blur(24px);
 }
 
 .admin-dashboard-sidebar::before,
@@ -1090,7 +1096,7 @@ h3 {
 .admin-brand h1 {
   font-size: 28px;
   letter-spacing: 0.14em;
-  color: #fff7ee;
+  color: var(--ink-0);
 }
 
 .admin-brand p,
@@ -1100,7 +1106,7 @@ h3 {
 .admin-nav-copy small,
 .admin-sidebar-foot-card p {
   margin: 0;
-  color: rgba(249, 239, 228, 0.7);
+  color: rgba(51, 65, 85, 0.72);
 }
 
 .admin-brand-mark {
@@ -1123,7 +1129,7 @@ h3 {
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
-  color: #ffb87a;
+  color: #8b5cf6;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -1144,8 +1150,8 @@ h3 {
   padding: 14px;
   border-radius: 18px;
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.03);
-  color: #fff4e9;
+  background: rgba(255, 255, 255, 0.42);
+  color: var(--ink-0);
   text-align: left;
   transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
@@ -1153,8 +1159,9 @@ h3 {
 .admin-nav-item:hover,
 .admin-nav-item.active {
   transform: translateX(4px);
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 184, 122, 0.28);
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(59, 130, 246, 0.16);
+  box-shadow: 0 10px 24px rgba(59, 130, 246, 0.08);
 }
 
 .admin-nav-icon,
@@ -1168,8 +1175,8 @@ h3 {
   width: 36px;
   height: 36px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffca93;
+  background: rgba(139, 92, 246, 0.08);
+  color: #3b82f6;
 }
 
 .admin-nav-copy {
@@ -1180,7 +1187,7 @@ h3 {
 
 .admin-nav-copy strong {
   font-size: 15px;
-  color: #fff8ef;
+  color: var(--ink-0);
 }
 
 .admin-nav-copy small {
@@ -1192,8 +1199,8 @@ h3 {
   min-width: 32px;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffe9d3;
+  background: rgba(59, 130, 246, 0.08);
+  color: #3b82f6;
   font-size: 12px;
   font-weight: 700;
 }
@@ -1208,20 +1215,20 @@ h3 {
 .admin-sidebar-foot-card {
   padding: 16px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.88);
 }
 
 .admin-sidebar-foot-card strong {
   display: block;
   margin-bottom: 8px;
-  color: #fff8ef;
+  color: var(--ink-0);
   font-size: 18px;
 }
 
 .admin-sidebar-link {
   justify-content: center;
-  color: #fff3e3;
+  color: var(--ink-1);
 }
 
 .admin-dashboard-main {
@@ -1388,7 +1395,7 @@ h3 {
 }
 
 .admin-metric-grid {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .admin-metric-card span {
@@ -1401,15 +1408,98 @@ h3 {
   text-transform: uppercase;
 }
 
+.admin-metric-head,
+.admin-metric-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-metric-head {
+  margin-bottom: 16px;
+}
+
+.admin-metric-title {
+  justify-content: flex-start;
+  min-width: 0;
+  margin-bottom: 0 !important;
+}
+
+.admin-metric-title > span:last-child {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.admin-metric-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  margin-bottom: 0 !important;
+  background: rgba(59, 130, 246, 0.09);
+  color: #3b82f6;
+  flex: 0 0 auto;
+}
+
+.admin-metric-badge {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0 !important;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #5a5048 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .admin-metric-card strong {
   display: block;
-  font-size: 34px;
+  font-size: clamp(26px, 2.6vw, 34px);
   color: #201711;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .admin-metric-card p {
   margin: 10px 0 0;
   color: #7a6f63;
+}
+
+.admin-metric-note {
+  min-height: 40px;
+}
+
+.admin-metric-string {
+  font-size: clamp(22px, 2vw, 30px) !important;
+}
+
+.admin-metric-card-good {
+  background: linear-gradient(180deg, rgba(248, 255, 252, 0.96), rgba(238, 252, 247, 0.88));
+}
+
+.admin-metric-card-good .admin-metric-icon {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+.admin-metric-card-bad {
+  background: linear-gradient(180deg, rgba(255, 250, 247, 0.96), rgba(255, 241, 236, 0.9));
+}
+
+.admin-metric-card-bad .admin-metric-icon {
+  background: rgba(225, 29, 72, 0.1);
+  color: #e11d48;
 }
 
 .admin-overview-grid {
@@ -1530,7 +1620,10 @@ h3 {
   }
 
   .admin-dashboard-sidebar {
+    position: relative;
+    top: 0;
     min-height: auto;
+    max-height: none;
   }
 
   .admin-hero-grid,

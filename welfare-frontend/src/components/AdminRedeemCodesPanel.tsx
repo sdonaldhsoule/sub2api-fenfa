@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
+import { formatAdminDateTime } from '../lib/admin-format';
 import { api, isUnauthorizedError } from '../lib/api';
 import type { AdminRedeemCodeItem } from '../types';
 
@@ -38,13 +39,7 @@ function formatDateTime(value: string | null): string {
   if (!value) {
     return '长期有效';
   }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return parsed.toLocaleString();
+  return formatAdminDateTime(value);
 }
 
 export function AdminRedeemCodesPanel({
@@ -299,7 +294,7 @@ export function AdminRedeemCodesPanel({
                   <strong>{item.title}</strong>
                   <span className="muted admin-redeem-meta">{item.code}</span>
                   <span className="muted admin-redeem-meta">
-                    创建于 {new Date(item.createdAt).toLocaleString()}
+                    创建于 {formatAdminDateTime(item.createdAt)}
                   </span>
                 </div>
 

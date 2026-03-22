@@ -1,4 +1,5 @@
 import { Icon } from './Icon';
+import { formatAdminBusinessDate, formatAdminDateTime } from '../lib/admin-format';
 import type { AdminCheckinItem, AdminRedeemClaimItem, AdminRedeemCodeItem, AdminSettings, DailyStats, WhitelistItem } from '../types';
 
 interface AdminDashboardOverviewProps {
@@ -18,19 +19,6 @@ interface AdminDashboardOverviewProps {
 function renderGrantTag(status: 'success' | 'pending' | 'failed') {
   const label = status === 'success' ? '成功' : status === 'pending' ? '处理中' : '失败';
   return <span className={`status-tag ${status}`}>{label}</span>;
-}
-
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) {
-    return '未设置';
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return parsed.toLocaleString();
 }
 
 function isExpiringSoon(value: string | null | undefined): boolean {
@@ -68,6 +56,57 @@ export function AdminDashboardOverview({
   const statsMaxGrant = Math.max(...(stats?.points.map((point) => point.grantTotal) ?? [0]), 1);
   const latestPoints = [...(stats?.points ?? [])].slice(-6).reverse();
   const urgentTotal = failedCheckinsTotal + failedRedeemClaimsTotal;
+  const metricCards = [
+    {
+      label: '签到状态',
+      value: settings?.checkin_enabled ? '运行中' : '已关闭',
+      note: settings?.checkin_enabled ? '当前签到链路处于可发放状态' : '当前不会接受新的签到发放请求',
+      badge: settings?.checkin_enabled ? '健康' : '暂停',
+      icon: 'bolt' as const,
+      tone: settings?.checkin_enabled ? 'good' : 'bad'
+    },
+    {
+      label: '每日奖励',
+      value: String(settings?.daily_reward_balance ?? '-'),
+      note: '按业务时区自动发放的固定额度',
+      badge: '基础配置',
+      icon: 'gift' as const,
+      tone: 'neutral'
+    },
+    {
+      label: '业务时区',
+      value: settings?.timezone ?? '-',
+      note: '决定签到业务日切换边界',
+      badge: '调度基准',
+      icon: 'settings' as const,
+      tone: 'neutral',
+      compact: true
+    },
+    {
+      label: '30 天签到用户',
+      value: String(stats?.active_users ?? 0),
+      note: '按用户去重后的活跃人数',
+      badge: '去重口径',
+      icon: 'users' as const,
+      tone: 'neutral'
+    },
+    {
+      label: '30 天签到人次',
+      value: String(stats?.total_checkins ?? 0),
+      note: '含重复用户的全部签到流水',
+      badge: '流水规模',
+      icon: 'chart' as const,
+      tone: 'neutral'
+    },
+    {
+      label: '兑换码状态',
+      value: String(activeRedeemCodes.length),
+      note: `${redeemCodes.length} 个总码，${expiringRedeemCodes.length} 个临期`,
+      badge: urgentTotal > 0 ? `${urgentTotal} 条异常` : '稳定',
+      icon: 'ticket' as const,
+      tone: urgentTotal > 0 ? 'bad' : 'good'
+    }
+  ];
 
   return (
     <div className="admin-section-stack">
@@ -121,36 +160,24 @@ export function AdminDashboardOverview({
       </div>
 
       <div className="admin-metric-grid">
-        <article className="admin-metric-card">
-          <span>每日奖励</span>
-          <strong>{settings?.daily_reward_balance ?? '-'}</strong>
-          <p>当前按业务时区自动发放</p>
-        </article>
-        <article className="admin-metric-card">
-          <span>业务时区</span>
-          <strong>{settings?.timezone ?? '-'}</strong>
-          <p>决定签到业务日边界</p>
-        </article>
-        <article className="admin-metric-card">
-          <span>30 天签到用户</span>
-          <strong>{stats?.active_users ?? 0}</strong>
-          <p>活跃用户去重统计</p>
-        </article>
-        <article className="admin-metric-card">
-          <span>30 天签到人次</span>
-          <strong>{stats?.total_checkins ?? 0}</strong>
-          <p>含重复用户的签到流水</p>
-        </article>
-        <article className="admin-metric-card">
-          <span>30 天发放总额</span>
-          <strong>{stats?.total_grant_balance ?? 0}</strong>
-          <p>签到累计发放额度</p>
-        </article>
-        <article className="admin-metric-card">
-          <span>兑换码总数</span>
-          <strong>{redeemCodes.length}</strong>
-          <p>{expiringRedeemCodes.length} 个即将过期</p>
-        </article>
+        {metricCards.map((item) => (
+          <article
+            key={item.label}
+            className={`admin-metric-card admin-metric-card-${item.tone}`}
+          >
+            <div className="admin-metric-head">
+              <div className="admin-metric-title">
+                <span className="admin-metric-icon">
+                  <Icon name={item.icon} size={15} />
+                </span>
+                <span>{item.label}</span>
+              </div>
+              <span className="admin-metric-badge">{item.badge}</span>
+            </div>
+            <strong className={item.compact ? 'admin-metric-string' : undefined}>{item.value}</strong>
+            <p className="admin-metric-note">{item.note}</p>
+          </article>
+        ))}
       </div>
 
       <div className="admin-overview-grid">
@@ -167,11 +194,11 @@ export function AdminDashboardOverview({
               <div className="empty-state">最近 30 天还没有可展示的签到数据。</div>
             )}
             {latestPoints.map((point) => (
-              <div key={point.checkinDate} className="admin-trend-row">
-                <div className="admin-trend-label">
-                  <strong>{point.checkinDate}</strong>
-                  <span>{point.checkinUsers} 人签到</span>
-                </div>
+                <div key={point.checkinDate} className="admin-trend-row">
+                  <div className="admin-trend-label">
+                    <strong>{formatAdminBusinessDate(point.checkinDate)}</strong>
+                    <span>{point.checkinUsers} 人签到</span>
+                  </div>
                 <div className="admin-trend-bar">
                   <span
                     style={{
@@ -225,7 +252,7 @@ export function AdminDashboardOverview({
               <div key={item.id} className="admin-mini-item">
                 <div>
                   <strong>{item.linuxdoSubject}</strong>
-                  <span>{item.checkinDate}</span>
+                  <span>{formatAdminBusinessDate(item.checkinDate)}</span>
                 </div>
                 <div className="admin-mini-item-tail">{renderGrantTag(item.grantStatus)}</div>
               </div>
@@ -273,7 +300,7 @@ export function AdminDashboardOverview({
                   <span>{item.code}</span>
                 </div>
                 <div className="admin-mini-item-tail">
-                  <strong>{formatDateTime(item.expiresAt)}</strong>
+                  <strong>{formatAdminDateTime(item.expiresAt)}</strong>
                 </div>
               </div>
             ))}

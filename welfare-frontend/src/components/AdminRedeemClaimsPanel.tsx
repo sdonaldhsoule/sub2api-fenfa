@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
+import { formatAdminDateTime } from '../lib/admin-format';
 import { api, isUnauthorizedError } from '../lib/api';
 import type { AdminRedeemClaimList, AdminRedeemClaimQuery } from '../types';
 
@@ -213,7 +214,7 @@ export function AdminRedeemClaimsPanel({
                   <div className="stack">
                     <strong>{item.rewardBalance}</strong>
                     <span className="muted admin-redeem-meta">
-                      {new Date(item.createdAt).toLocaleString()}
+                      {formatAdminDateTime(item.createdAt)}
                     </span>
                   </div>
 

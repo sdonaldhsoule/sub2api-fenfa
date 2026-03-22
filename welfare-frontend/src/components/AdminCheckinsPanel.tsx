@@ -1,4 +1,5 @@
 import { Icon } from './Icon';
+import { formatAdminBusinessDate, formatAdminDateTime } from '../lib/admin-format';
 import type { AdminCheckinItem, AdminCheckinList, AdminCheckinQuery, AdminSettings, DailyStats } from '../types';
 
 interface AdminCheckinsPanelProps {
@@ -125,8 +126,8 @@ export function AdminCheckinsPanel({
                 </div>
                 <div className="list">
                   {stats.points.slice(-5).reverse().map((point) => (
-                    <div key={point.checkinDate} className="list-item admin-list-compact">
-                      <strong>{point.checkinDate}</strong>
+                  <div key={point.checkinDate} className="list-item admin-list-compact">
+                      <strong>{formatAdminBusinessDate(point.checkinDate)}</strong>
                       <span className="muted">人数: {point.checkinUsers}</span>
                       <span className="muted">发放: {point.grantTotal}</span>
                     </div>
@@ -236,9 +237,9 @@ export function AdminCheckinsPanel({
                   </div>
 
                   <div className="stack">
-                    <strong>{item.checkinDate}</strong>
+                    <strong>{formatAdminBusinessDate(item.checkinDate)}</strong>
                     <span className="muted admin-checkin-meta">
-                      {new Date(item.createdAt).toLocaleString()}
+                      {formatAdminDateTime(item.createdAt)}
                     </span>
                   </div>
 

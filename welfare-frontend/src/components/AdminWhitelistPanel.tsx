@@ -1,4 +1,5 @@
 import { Icon } from './Icon';
+import { formatAdminDateTime } from '../lib/admin-format';
 import type { WhitelistItem } from '../types';
 
 interface AdminWhitelistPanelProps {
@@ -90,7 +91,7 @@ export function AdminWhitelistPanel({
                 <span className="muted admin-checkin-meta">{item.notes || '无备注'}</span>
               </div>
               <span className="muted admin-checkin-meta">
-                {new Date(item.createdAt).toLocaleString()}
+                {formatAdminDateTime(item.createdAt)}
               </span>
               <button className="button danger" onClick={() => void onRemove(item.id)}>
                 删除
