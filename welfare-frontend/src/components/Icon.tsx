@@ -1,6 +1,15 @@
 import type { SVGProps } from 'react';
 
-type IconName = 'chart' | 'gift' | 'link' | 'settings' | 'shield';
+type IconName =
+  | 'bolt'
+  | 'chart'
+  | 'gift'
+  | 'grid'
+  | 'link'
+  | 'settings'
+  | 'shield'
+  | 'ticket'
+  | 'users';
 
 type IconProps = SVGProps<SVGSVGElement> & {
   name: IconName;
@@ -9,6 +18,21 @@ type IconProps = SVGProps<SVGSVGElement> & {
 
 function IconPath({ name }: { name: IconName }) {
   switch (name) {
+    case 'grid':
+      return (
+        <>
+          <rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <rect x="3" y="14" width="7" height="7" rx="1.5" />
+          <rect x="14" y="14" width="7" height="7" rx="1.5" />
+        </>
+      );
+    case 'bolt':
+      return (
+        <>
+          <path d="M13 2L5 14h5l-1 8 8-12h-5l1-8z" />
+        </>
+      );
     case 'link':
       return (
         <>
@@ -56,6 +80,24 @@ function IconPath({ name }: { name: IconName }) {
         <>
           <path d="M12 3l7 3v6c0 4.55-2.92 7.71-7 9-4.08-1.29-7-4.45-7-9V6l7-3z" />
           <path d="M9.5 12.5l1.75 1.75L15 10.5" />
+        </>
+      );
+    case 'ticket':
+      return (
+        <>
+          <path d="M4 8a2 2 0 0 0 0 4v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4a2 2 0 0 0 0-4V8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2z" />
+          <path d="M9 8v8" />
+          <path d="M9 11h0" />
+          <path d="M9 15h0" />
+        </>
+      );
+    case 'users':
+      return (
+        <>
+          <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+          <path d="M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
+          <path d="M21 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </>
       );
   }

@@ -1,18 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
+import { AdminCheckinsPanel } from '../components/AdminCheckinsPanel';
+import { AdminDashboardOverview } from '../components/AdminDashboardOverview';
 import { AdminRedeemCodesPanel } from '../components/AdminRedeemCodesPanel';
 import { AdminRedeemClaimsPanel } from '../components/AdminRedeemClaimsPanel';
+import { AdminWhitelistPanel } from '../components/AdminWhitelistPanel';
 import { useAuth } from '../lib/auth';
 import { api, isUnauthorizedError } from '../lib/api';
 import type {
   AdminCheckinItem,
   AdminCheckinList,
   AdminCheckinQuery,
+  AdminRedeemClaimItem,
+  AdminRedeemCodeItem,
   AdminSettings,
   DailyStats,
   WhitelistItem
 } from '../types';
+
+type AdminSection = 'overview' | 'checkins' | 'redeemCodes' | 'redeemClaims' | 'whitelist';
 
 const defaultCheckinFilters: AdminCheckinQuery = {
   page: 1,
@@ -26,14 +33,54 @@ const defaultCheckinFilterForm = {
   date_to: ''
 };
 
-function renderGrantTag(status: AdminCheckinItem['grantStatus']) {
-  const label = status === 'success' ? '成功' : status === 'pending' ? '处理中' : '失败';
-  return <span className={`status-tag ${status}`}>{label}</span>;
-}
+const sections: Array<{
+  id: AdminSection;
+  label: string;
+  title: string;
+  description: string;
+  icon: 'bolt' | 'chart' | 'grid' | 'ticket' | 'users';
+}> = [
+  {
+    id: 'overview',
+    label: '总览',
+    title: '运营总览',
+    description: '先看状态、问题和近期趋势，再决定要进入哪条业务线。',
+    icon: 'grid'
+  },
+  {
+    id: 'checkins',
+    label: '签到管理',
+    title: '签到控制',
+    description: '维护签到配置、观察趋势并处理失败流水。',
+    icon: 'bolt'
+  },
+  {
+    id: 'redeemCodes',
+    label: '兑换码',
+    title: '兑换码资产池',
+    description: '创建活动码、调整启停状态，控制活动额度与人数上限。',
+    icon: 'ticket'
+  },
+  {
+    id: 'redeemClaims',
+    label: '兑换记录',
+    title: '兑换记录台',
+    description: '排查兑换失败、补发异常和重复请求。',
+    icon: 'chart'
+  },
+  {
+    id: 'whitelist',
+    label: '管理员',
+    title: '权限白名单',
+    description: '维护后台访问名单，确保只有运营账号可进入控制台。',
+    icon: 'users'
+  }
+];
 
 export function AdminPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [activeSection, setActiveSection] = useState<AdminSection>('overview');
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [dailyRewardInput, setDailyRewardInput] = useState('');
   const [stats, setStats] = useState<DailyStats | null>(null);
@@ -43,6 +90,11 @@ export function AdminPage() {
   const [whitelist, setWhitelist] = useState<WhitelistItem[]>([]);
   const [newSubject, setNewSubject] = useState('');
   const [newNotes, setNewNotes] = useState('');
+  const [overviewRedeemCodes, setOverviewRedeemCodes] = useState<AdminRedeemCodeItem[]>([]);
+  const [overviewFailedCheckins, setOverviewFailedCheckins] = useState<AdminCheckinItem[]>([]);
+  const [overviewFailedCheckinsTotal, setOverviewFailedCheckinsTotal] = useState(0);
+  const [overviewFailedRedeemClaims, setOverviewFailedRedeemClaims] = useState<AdminRedeemClaimItem[]>([]);
+  const [overviewFailedRedeemClaimsTotal, setOverviewFailedRedeemClaimsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [checkinsLoading, setCheckinsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,15 +107,46 @@ export function AdminPage() {
     navigate('/login', { replace: true });
   }
 
+  async function refreshDashboardSnapshot() {
+    try {
+      const [redeemCodes, failedCheckinsResp, failedRedeemClaimsResp] = await Promise.all([
+        api.listAdminRedeemCodes(),
+        api.listAdminCheckins({ page: 1, page_size: 4, grant_status: 'failed' }),
+        api.listAdminRedeemClaims({ page: 1, page_size: 4, grant_status: 'failed' })
+      ]);
+      setOverviewRedeemCodes(redeemCodes);
+      setOverviewFailedCheckins(failedCheckinsResp.items);
+      setOverviewFailedCheckinsTotal(failedCheckinsResp.total);
+      setOverviewFailedRedeemClaims(failedRedeemClaimsResp.items);
+      setOverviewFailedRedeemClaimsTotal(failedRedeemClaimsResp.total);
+    } catch (err) {
+      if (isUnauthorizedError(err)) {
+        await redirectToLogin();
+        return;
+      }
+      setError(err instanceof Error ? err.message : '总览数据加载失败');
+    }
+  }
+
   async function loadOverview() {
     setLoading(true);
     setError('');
     try {
-      const overview = await api.getAdminOverview();
+      const [overview, redeemCodes, failedCheckinsResp, failedRedeemClaimsResp] = await Promise.all([
+        api.getAdminOverview(),
+        api.listAdminRedeemCodes(),
+        api.listAdminCheckins({ page: 1, page_size: 4, grant_status: 'failed' }),
+        api.listAdminRedeemClaims({ page: 1, page_size: 4, grant_status: 'failed' })
+      ]);
       setSettings(overview.settings);
       setDailyRewardInput(String(overview.settings.daily_reward_balance));
       setStats(overview.stats);
       setWhitelist(overview.whitelist);
+      setOverviewRedeemCodes(redeemCodes);
+      setOverviewFailedCheckins(failedCheckinsResp.items);
+      setOverviewFailedCheckinsTotal(failedCheckinsResp.total);
+      setOverviewFailedRedeemClaims(failedRedeemClaimsResp.items);
+      setOverviewFailedRedeemClaimsTotal(failedRedeemClaimsResp.total);
     } catch (err) {
       if (isUnauthorizedError(err)) {
         await redirectToLogin();
@@ -93,17 +176,15 @@ export function AdminPage() {
   }
 
   useEffect(() => {
-    if (!user?.is_admin) {
-      return;
+    if (user?.is_admin) {
+      void loadOverview();
     }
-    void loadOverview();
   }, [user?.is_admin]);
 
   useEffect(() => {
-    if (!user?.is_admin) {
-      return;
+    if (user?.is_admin) {
+      void loadCheckins(checkinFilters);
     }
-    void loadCheckins(checkinFilters);
   }, [checkinFilters, user?.is_admin]);
 
   async function saveSettings() {
@@ -114,7 +195,6 @@ export function AdminPage() {
       setMessage('');
       return;
     }
-
     setSaving(true);
     setError('');
     setMessage('');
@@ -148,10 +228,7 @@ export function AdminPage() {
       });
       setNewSubject('');
       setNewNotes('');
-      setWhitelist((current) => {
-        const filtered = current.filter((item) => item.id !== created.id);
-        return [...filtered, created].sort((a, b) => a.id - b.id);
-      });
+      setWhitelist((current) => [...current.filter((item) => item.id !== created.id), created].sort((a, b) => a.id - b.id));
       setMessage('已添加管理员白名单');
     } catch (err) {
       if (isUnauthorizedError(err)) {
@@ -187,7 +264,6 @@ export function AdminPage() {
       setError('开始日期不能晚于结束日期');
       return;
     }
-
     setCheckinFilters({
       page: 1,
       page_size: checkinFilters.page_size ?? defaultCheckinFilters.page_size,
@@ -198,22 +274,6 @@ export function AdminPage() {
     });
   }
 
-  function resetCheckinFilters() {
-    setCheckinFilterForm(defaultCheckinFilterForm);
-    setCheckinFilters(defaultCheckinFilters);
-  }
-
-  function changeCheckinPage(nextPage: number) {
-    if (!checkinList) return;
-    if (nextPage < 1 || nextPage > checkinList.pages || nextPage === checkinList.page) {
-      return;
-    }
-    setCheckinFilters((current) => ({
-      ...current,
-      page: nextPage
-    }));
-  }
-
   async function retryCheckin(id: number) {
     setRetryingId(id);
     setError('');
@@ -222,14 +282,11 @@ export function AdminPage() {
       const result = await api.retryAdminCheckin(id);
       const [statsResp] = await Promise.all([
         api.getDailyStats(30),
-        loadCheckins(checkinFilters)
+        loadCheckins(checkinFilters),
+        refreshDashboardSnapshot()
       ]);
       setStats(statsResp);
-      setMessage(
-        `补发成功：${result.item.linuxdoSubject} / ${result.item.checkinDate}${
-          result.new_balance !== null ? `，当前余额 ${result.new_balance}` : ''
-        }`
-      );
+      setMessage(`补发成功：${result.item.linuxdoSubject} / ${result.item.checkinDate}${result.new_balance !== null ? `，当前余额 ${result.new_balance}` : ''}`);
     } catch (err) {
       if (isUnauthorizedError(err)) {
         await redirectToLogin();
@@ -268,340 +325,164 @@ export function AdminPage() {
     );
   }
 
+  const currentSection = sections.find((item) => item.id === activeSection) ?? sections[0];
+  const urgentTotal = overviewFailedCheckinsTotal + overviewFailedRedeemClaimsTotal;
+
   return (
-    <div className="page">
-      <div className="card">
-        <div className="row topbar">
-          <div>
-            <span className="eyebrow">管理后台</span>
-            <h1 className="hero-title">福利后台管理</h1>
-            <div className="user-info">
-              {user.avatar_url && (
-                <img
-                  className="user-avatar user-avatar-sm"
-                  src={user.avatar_url}
-                  alt={user.username}
-                />
-              )}
-              <p className="muted" style={{ marginTop: 0 }}>
-                管理员：{user.username}
-              </p>
+    <div className="page admin-dashboard-page">
+      <div className="admin-dashboard-shell">
+        <aside className="admin-dashboard-sidebar">
+          <div className="admin-brand">
+            <div className="admin-brand-mark">WF</div>
+            <div>
+              <span className="admin-sidebar-kicker">Welfare Station</span>
+              <h1>CONTROL ROOM</h1>
+              <p>把签到、兑换码与权限操作收进一个值守界面。</p>
             </div>
           </div>
-          <div className="actions">
-            <Link to="/checkin" className="button ghost">
-              → 签到页
+
+          <nav className="admin-nav">
+            {sections.map((item) => (
+              <button
+                key={item.id}
+                className={`admin-nav-item ${activeSection === item.id ? 'active' : ''}`}
+                onClick={() => setActiveSection(item.id)}
+              >
+                <span className="admin-nav-icon">
+                  <Icon name={item.icon} size={16} />
+                </span>
+                <span className="admin-nav-copy">
+                  <strong>{item.label}</strong>
+                  <small>{item.description}</small>
+                </span>
+                <span className="admin-nav-count">
+                  {item.id === 'checkins'
+                    ? stats?.total_checkins ?? 0
+                    : item.id === 'redeemCodes'
+                      ? overviewRedeemCodes.length
+                      : item.id === 'redeemClaims'
+                        ? urgentTotal
+                        : item.id === 'whitelist'
+                          ? whitelist.length
+                          : '•'}
+                </span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="admin-sidebar-foot">
+            <div className="admin-sidebar-foot-card">
+              <span className="admin-sidebar-kicker">当前值守</span>
+              <strong>{user.username}</strong>
+              <p>{settings?.checkin_enabled ? '签到正在运行' : '签到当前关闭'}，业务时区 {settings?.timezone ?? '-'}</p>
+            </div>
+            <Link to="/checkin" className="button ghost admin-sidebar-link">
+              返回签到页
             </Link>
           </div>
-        </div>
+        </aside>
 
-        {error && <p className="alert error">{error}</p>}
-        {message && <p className="alert success">{message}</p>}
-
-        <h2 className="section-title">
-          <span className="section-title-content">
-            <Icon name="settings" className="icon icon-accent" />
-            <span>签到配置</span>
-          </span>
-        </h2>
-        {settings && (
-          <div className="panel">
-            <div className="form-grid">
-              <label className="field">
-                <span>签到开关</span>
-                <input
-                  type="checkbox"
-                  checked={settings.checkin_enabled}
-                  onChange={(event) =>
-                    setSettings({ ...settings, checkin_enabled: event.target.checked })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>每日奖励余额</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={dailyRewardInput}
-                  onChange={(event) => setDailyRewardInput(event.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>业务时区</span>
-                <input
-                  type="text"
-                  value={settings.timezone}
-                  onChange={(event) =>
-                    setSettings({ ...settings, timezone: event.target.value })
-                  }
-                />
-              </label>
+        <main className="admin-dashboard-main">
+          <header className="admin-dashboard-header">
+            <div>
+              <span className="admin-surface-kicker">福利控制台</span>
+              <h2>{currentSection.title}</h2>
+              <p>{currentSection.description}</p>
             </div>
-            <div className="form-actions">
-              <button className="button primary" onClick={saveSettings} disabled={saving}>
-                {saving ? '保存中...' : '保存设置'}
+            <div className="admin-header-actions">
+              <div className="admin-identity">
+                {user.avatar_url && <img className="user-avatar user-avatar-sm" src={user.avatar_url} alt={user.username} />}
+                <div className="stack">
+                  <strong>{user.username}</strong>
+                  <span className="muted">sub2api #{user.sub2api_user_id}</span>
+                </div>
+              </div>
+              <button className="button" onClick={() => void loadOverview()}>
+                刷新总览
               </button>
             </div>
-          </div>
-        )}
+          </header>
 
-        <h2 className="section-title">
-          <span className="section-title-content">
-            <Icon name="chart" className="icon icon-accent" />
-            <span>30 天签到统计</span>
-          </span>
-        </h2>
-        {stats && (
-          <div className="panel">
-            <div className="admin-stats-summary">
-              <span className="chip">签到用户数：{stats.active_users}</span>
-              <span className="chip">签到人次：{stats.total_checkins}</span>
-              <span className="chip">发放总额：{stats.total_grant_balance}</span>
-            </div>
-            <div className="list">
-              {stats.points.map((point) => (
-                <div key={point.checkinDate} className="list-item">
-                  <strong>{point.checkinDate}</strong>
-                  <span className="muted">人数: {point.checkinUsers}</span>
-                  <span className="muted">发放: {point.grantTotal}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          {error && <p className="alert error admin-dashboard-alert">{error}</p>}
+          {message && <p className="alert success admin-dashboard-alert">{message}</p>}
 
-        <AdminRedeemCodesPanel
-          onUnauthorized={redirectToLogin}
-          onError={setError}
-          onSuccess={setMessage}
-        />
-
-        <AdminRedeemClaimsPanel
-          onUnauthorized={redirectToLogin}
-          onError={setError}
-          onSuccess={setMessage}
-        />
-
-        <h2 className="section-title">
-          <span className="section-title-content">
-            <Icon name="gift" className="icon icon-accent" />
-            <span>签到明细</span>
-          </span>
-        </h2>
-        <div className="panel">
-          <div className="form-grid admin-checkin-filters">
-            <label className="field">
-              <span>LinuxDo Subject</span>
-              <input
-                type="text"
-                value={checkinFilterForm.subject}
-                onChange={(event) =>
-                  setCheckinFilterForm((current) => ({
-                    ...current,
-                    subject: event.target.value
-                  }))
-                }
-                placeholder="支持模糊搜索"
-              />
-            </label>
-            <label className="field">
-              <span>发放状态</span>
-              <select
-                value={checkinFilterForm.grant_status}
-                onChange={(event) =>
-                  setCheckinFilterForm((current) => ({
-                    ...current,
-                    grant_status: event.target.value as typeof defaultCheckinFilterForm.grant_status
-                  }))
-                }
-              >
-                <option value="">全部状态</option>
-                <option value="pending">处理中</option>
-                <option value="success">成功</option>
-                <option value="failed">失败</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>开始日期</span>
-              <input
-                type="date"
-                value={checkinFilterForm.date_from}
-                onChange={(event) =>
-                  setCheckinFilterForm((current) => ({
-                    ...current,
-                    date_from: event.target.value
-                  }))
-                }
-              />
-            </label>
-            <label className="field">
-              <span>结束日期</span>
-              <input
-                type="date"
-                value={checkinFilterForm.date_to}
-                onChange={(event) =>
-                  setCheckinFilterForm((current) => ({
-                    ...current,
-                    date_to: event.target.value
-                  }))
-                }
-              />
-            </label>
-          </div>
-
-          <div className="form-actions actions">
-            <button className="button primary" onClick={applyCheckinFilters}>
-              查询明细
-            </button>
-            <button className="button ghost" onClick={resetCheckinFilters}>
-              重置筛选
-            </button>
-          </div>
-
-          {checkinList && (
-            <div className="admin-stats-summary" style={{ marginTop: 16 }}>
-              <span className="chip">总记录：{checkinList.total}</span>
-              <span className="chip">当前页：{checkinList.page} / {checkinList.pages}</span>
-              <span className="chip">每页：{checkinList.page_size}</span>
-            </div>
+          {activeSection === 'overview' && (
+            <AdminDashboardOverview
+              settings={settings}
+              stats={stats}
+              whitelist={whitelist}
+              redeemCodes={overviewRedeemCodes}
+              failedCheckins={overviewFailedCheckins}
+              failedCheckinsTotal={overviewFailedCheckinsTotal}
+              failedRedeemClaims={overviewFailedRedeemClaims}
+              failedRedeemClaimsTotal={overviewFailedRedeemClaimsTotal}
+              onOpenCheckins={() => setActiveSection('checkins')}
+              onOpenRedeemCodes={() => setActiveSection('redeemCodes')}
+              onOpenRedeemClaims={() => setActiveSection('redeemClaims')}
+            />
           )}
 
-          {checkinsLoading ? (
-            <p className="loading-text">正在加载签到明细...</p>
-          ) : checkinList && checkinList.items.length > 0 ? (
-            <>
-              <div className="list" style={{ marginTop: 16 }}>
-                {checkinList.items.map((item) => (
-                  <div key={item.id} className="list-item admin-checkin-item">
-                    <div className="stack">
-                      <strong>{item.linuxdoSubject}</strong>
-                      <span className="muted admin-checkin-meta">{item.syntheticEmail}</span>
-                      <span className="muted admin-checkin-meta">
-                        用户 #{item.sub2apiUserId}
-                      </span>
-                    </div>
-
-                    <div className="stack">
-                      <strong>{item.checkinDate}</strong>
-                      <span className="muted admin-checkin-meta">
-                        {new Date(item.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="stack">
-                      <strong>{item.rewardBalance}</strong>
-                      <span className="muted admin-checkin-meta">发放额度</span>
-                    </div>
-
-                    <div className="stack">
-                      {renderGrantTag(item.grantStatus)}
-                      <span className="muted admin-checkin-meta">
-                        {item.sub2apiRequestId || '无 request id'}
-                      </span>
-                    </div>
-
-                    <div className="stack">
-                      <span
-                        className={`admin-checkin-error ${
-                          item.grantStatus === 'failed' ? 'failed' : ''
-                        }`}
-                      >
-                        {item.grantError || '发放成功'}
-                      </span>
-                      <span className="muted admin-checkin-meta">
-                        幂等键：{item.idempotencyKey}
-                      </span>
-                    </div>
-
-                    <div className="actions admin-checkin-actions">
-                      {item.grantStatus !== 'success' ? (
-                        <button
-                          className="button danger"
-                          onClick={() => retryCheckin(item.id)}
-                          disabled={retryingId === item.id}
-                        >
-                          {retryingId === item.id
-                            ? '补发中...'
-                            : item.grantStatus === 'pending'
-                              ? '接管重试'
-                              : '重试补发'}
-                        </button>
-                      ) : (
-                        <span className="muted admin-checkin-meta">无需补发</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="pagination-bar">
-                <span className="muted admin-checkin-meta">
-                  共 {checkinList.total} 条，当前展示第 {checkinList.page} 页
-                </span>
-                <div className="actions">
-                  <button
-                    className="button ghost"
-                    onClick={() => changeCheckinPage(checkinList.page - 1)}
-                    disabled={checkinList.page <= 1}
-                  >
-                    上一页
-                  </button>
-                  <button
-                    className="button ghost"
-                    onClick={() => changeCheckinPage(checkinList.page + 1)}
-                    disabled={checkinList.page >= checkinList.pages}
-                  >
-                    下一页
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="empty-state" style={{ marginTop: 16 }}>
-              当前筛选条件下没有签到记录。
-            </div>
+          {activeSection === 'checkins' && (
+            <AdminCheckinsPanel
+              settings={settings}
+              dailyRewardInput={dailyRewardInput}
+              onDailyRewardInputChange={setDailyRewardInput}
+              onSettingsChange={setSettings}
+              stats={stats}
+              saving={saving}
+              onSaveSettings={saveSettings}
+              checkinList={checkinList}
+              checkinsLoading={checkinsLoading}
+              checkinFilters={checkinFilters}
+              checkinFilterForm={checkinFilterForm}
+              onCheckinFilterFormChange={(updater) => setCheckinFilterForm((current) => updater(current))}
+              onApplyFilters={applyCheckinFilters}
+              onResetFilters={() => {
+                setCheckinFilterForm(defaultCheckinFilterForm);
+                setCheckinFilters(defaultCheckinFilters);
+              }}
+              retryingId={retryingId}
+              onRetryCheckin={retryCheckin}
+              onChangePage={(nextPage) => {
+                if (!checkinList || nextPage < 1 || nextPage > checkinList.pages || nextPage === checkinList.page) {
+                  return;
+                }
+                setCheckinFilters((current) => ({ ...current, page: nextPage }));
+              }}
+            />
           )}
-        </div>
 
-        <h2 className="section-title">
-          <span className="section-title-content">
-            <Icon name="shield" className="icon icon-accent" />
-            <span>管理员白名单</span>
-          </span>
-        </h2>
-        <div className="panel">
-          <div className="form-grid">
-            <label className="field">
-              <span>LinuxDo Subject</span>
-              <input value={newSubject} onChange={(event) => setNewSubject(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>备注</span>
-              <input value={newNotes} onChange={(event) => setNewNotes(event.target.value)} />
-            </label>
-          </div>
-          <div className="form-actions">
-            <button className="button" onClick={addWhitelist}>
-              添加白名单
-            </button>
-          </div>
+          {activeSection === 'redeemCodes' && (
+            <AdminRedeemCodesPanel
+              onUnauthorized={redirectToLogin}
+              onError={setError}
+              onSuccess={setMessage}
+              onCodesChanged={refreshDashboardSnapshot}
+            />
+          )}
 
-          <div className="list" style={{ marginTop: 16 }}>
-            {whitelist.map((item) => (
-              <div key={item.id} className="list-item">
-                <strong>{item.linuxdoSubject}</strong>
-                <span className="muted">{item.notes || '-'}</span>
-                <span className="muted" style={{ fontSize: 13 }}>
-                  {new Date(item.createdAt).toLocaleString()}
-                </span>
-                <button className="button danger" onClick={() => removeWhitelist(item.id)}>
-                  删除
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+          {activeSection === 'redeemClaims' && (
+            <AdminRedeemClaimsPanel
+              onUnauthorized={redirectToLogin}
+              onError={setError}
+              onSuccess={setMessage}
+              onClaimsChanged={refreshDashboardSnapshot}
+            />
+          )}
+
+          {activeSection === 'whitelist' && (
+            <AdminWhitelistPanel
+              userName={user.username}
+              whitelist={whitelist}
+              newSubject={newSubject}
+              newNotes={newNotes}
+              onSubjectChange={setNewSubject}
+              onNotesChange={setNewNotes}
+              onAdd={addWhitelist}
+              onRemove={removeWhitelist}
+            />
+          )}
+        </main>
       </div>
     </div>
   );

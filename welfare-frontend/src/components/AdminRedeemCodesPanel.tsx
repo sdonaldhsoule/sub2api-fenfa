@@ -7,6 +7,7 @@ interface AdminRedeemCodesPanelProps {
   onUnauthorized: () => Promise<void>;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
+  onCodesChanged?: () => Promise<void>;
 }
 
 const initialForm = {
@@ -49,13 +50,16 @@ function formatDateTime(value: string | null): string {
 export function AdminRedeemCodesPanel({
   onUnauthorized,
   onError,
-  onSuccess
+  onSuccess,
+  onCodesChanged
 }: AdminRedeemCodesPanelProps) {
   const [codes, setCodes] = useState<AdminRedeemCodeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [form, setForm] = useState(initialForm);
+  const enabledCount = codes.filter((item) => item.enabled && !item.isExpired).length;
+  const expiringCount = codes.filter((item) => item.isExpired).length;
 
   async function loadCodes() {
     setLoading(true);
@@ -113,6 +117,9 @@ export function AdminRedeemCodesPanel({
       setCodes((current) => [created, ...current]);
       setForm(initialForm);
       onError('');
+      if (onCodesChanged) {
+        await onCodesChanged();
+      }
       onSuccess(`已创建兑换码 ${created.code}`);
     } catch (err) {
       if (isUnauthorizedError(err)) {
@@ -136,6 +143,9 @@ export function AdminRedeemCodesPanel({
         current.map((code) => (code.id === updated.id ? updated : code))
       );
       onError('');
+      if (onCodesChanged) {
+        await onCodesChanged();
+      }
       onSuccess(`${updated.code} 已${updated.enabled ? '启用' : '停用'}`);
     } catch (err) {
       if (isUnauthorizedError(err)) {
@@ -151,12 +161,13 @@ export function AdminRedeemCodesPanel({
 
   return (
     <>
-      <h2 className="section-title">
-        <span className="section-title-content">
-          <Icon name="gift" className="icon icon-accent" />
-          <span>兑换码管理</span>
-        </span>
-      </h2>
+      <div className="admin-section-head">
+        <div>
+          <span className="admin-surface-kicker">Redeem Assets</span>
+          <h2 className="admin-section-title">兑换码资产池</h2>
+          <p className="admin-section-copy">创建活动码、控制人数和过期节奏，把一次性运营动作变成可复用资产。</p>
+        </div>
+      </div>
 
       <div className="panel">
         <div className="form-grid">
@@ -271,6 +282,11 @@ export function AdminRedeemCodesPanel({
       </div>
 
       <div className="panel">
+        <div className="admin-stats-summary">
+          <span className="chip">总兑换码：{codes.length}</span>
+          <span className="chip">活跃中：{enabledCount}</span>
+          <span className="chip">已过期：{expiringCount}</span>
+        </div>
         {loading ? (
           <p className="loading-text">正在加载兑换码...</p>
         ) : codes.length === 0 ? (
@@ -299,6 +315,13 @@ export function AdminRedeemCodesPanel({
                   <span className="muted admin-redeem-meta">
                     剩余 {item.remainingClaims}
                   </span>
+                  <div className="admin-progress-track">
+                    <span
+                      style={{
+                        width: `${Math.min(100, (item.claimedCount / item.maxClaims) * 100)}%`
+                      }}
+                    />
+                  </div>
                 </div>
 
                 <div className="stack">

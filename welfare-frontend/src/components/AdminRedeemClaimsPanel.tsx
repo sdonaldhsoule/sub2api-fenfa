@@ -7,6 +7,7 @@ interface AdminRedeemClaimsPanelProps {
   onUnauthorized: () => Promise<void>;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
+  onClaimsChanged?: () => Promise<void>;
 }
 
 const defaultFilters: AdminRedeemClaimQuery = {
@@ -28,7 +29,8 @@ function renderGrantTag(status: 'success' | 'pending' | 'failed') {
 export function AdminRedeemClaimsPanel({
   onUnauthorized,
   onError,
-  onSuccess
+  onSuccess,
+  onClaimsChanged
 }: AdminRedeemClaimsPanelProps) {
   const [claimList, setClaimList] = useState<AdminRedeemClaimList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,6 +91,9 @@ export function AdminRedeemClaimsPanel({
     try {
       const result = await api.retryAdminRedeemClaim(id);
       await loadClaims(filters);
+      if (onClaimsChanged) {
+        await onClaimsChanged();
+      }
       onError('');
       onSuccess(
         `补发成功：${result.item.redeemCode} / ${result.item.linuxdoSubject}${
@@ -109,12 +114,13 @@ export function AdminRedeemClaimsPanel({
 
   return (
     <>
-      <h2 className="section-title">
-        <span className="section-title-content">
-          <Icon name="chart" className="icon icon-accent" />
-          <span>兑换记录</span>
-        </span>
-      </h2>
+      <div className="admin-section-head">
+        <div>
+          <span className="admin-surface-kicker">Redeem Ledger</span>
+          <h2 className="admin-section-title">兑换记录台</h2>
+          <p className="admin-section-copy">锁定失败流水、定位幂等键和上游 request id，确保补发动作可追踪。</p>
+        </div>
+      </div>
 
       <div className="panel">
         <div className="form-grid admin-checkin-filters">
