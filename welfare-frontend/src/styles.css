@@ -1388,16 +1388,16 @@ h3 {
 }
 
 .admin-metric-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
 .admin-metric-card span {
   display: block;
-  margin-bottom: 10px;
-  color: #7a6d61;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -1411,6 +1411,7 @@ h3 {
 
 .admin-metric-head {
   margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .admin-metric-title {
@@ -1424,6 +1425,7 @@ h3 {
   align-items: center;
   min-width: 0;
   margin-bottom: 0;
+  white-space: nowrap;
 }
 
 .admin-metric-icon {
@@ -1458,10 +1460,11 @@ h3 {
 .admin-metric-card strong {
   display: block;
   font-size: clamp(26px, 2.6vw, 34px);
-  color: #201711;
+  color: #0f172a;
   line-height: 1.08;
   overflow-wrap: anywhere;
   word-break: break-word;
+  margin-top: 8px;
 }
 
 .admin-metric-card p {
