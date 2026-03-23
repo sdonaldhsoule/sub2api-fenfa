@@ -18,7 +18,6 @@ import {
   verifySessionHandoff
 } from '../utils/oauth.js';
 
-const LINUXDO_COOKIE_NAME = 'welfare_oauth_state';
 const COOKIE_MAX_AGE_MS = 10 * 60 * 1000;
 const SESSION_HANDOFF_MAX_AGE_MS = 60 * 1000;
 
@@ -49,14 +48,12 @@ const sessionHandoffExchangeSchema = z.object({
 export const authRouter = Router();
 
 authRouter.get('/linuxdo/start', (req, res) => {
-  const state = randomBase64Url(24);
   const codeVerifier = randomBase64Url(32);
   const codeChallenge = createCodeChallenge(codeVerifier);
   const redirectPath = sanitizeRedirectPath(req.query.redirect as string | undefined);
-
-  const signed = signOAuthState(
+  const signedState = signOAuthState(
     {
-      state,
+      state: randomBase64Url(24),
       codeVerifier,
       redirectPath,
       issuedAt: Date.now()
@@ -64,20 +61,12 @@ authRouter.get('/linuxdo/start', (req, res) => {
     config.WELFARE_JWT_SECRET
   );
 
-  res.cookie(LINUXDO_COOKIE_NAME, signed, {
-    httpOnly: true,
-    secure: config.WELFARE_COOKIE_SECURE,
-    sameSite: 'lax',
-    maxAge: COOKIE_MAX_AGE_MS,
-    path: '/api/auth/linuxdo'
-  });
-
   const authorizeUrl = new URL(config.LINUXDO_AUTHORIZE_URL);
   authorizeUrl.searchParams.set('response_type', 'code');
   authorizeUrl.searchParams.set('client_id', config.LINUXDO_CLIENT_ID);
   authorizeUrl.searchParams.set('redirect_uri', config.LINUXDO_REDIRECT_URI);
   authorizeUrl.searchParams.set('scope', config.LINUXDO_SCOPE);
-  authorizeUrl.searchParams.set('state', state);
+  authorizeUrl.searchParams.set('state', signedState);
   authorizeUrl.searchParams.set('code_challenge', codeChallenge);
   authorizeUrl.searchParams.set('code_challenge_method', 'S256');
 
@@ -99,9 +88,6 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
       error: errorCode,
       ...(detail ? { detail } : {})
     });
-    res.clearCookie(LINUXDO_COOKIE_NAME, {
-      path: '/api/auth/linuxdo'
-    });
     res.redirect(frontendCallbackUrl.toString());
   };
 
@@ -115,20 +101,9 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
     return;
   }
 
-  const signedState = req.cookies?.[LINUXDO_COOKIE_NAME] as string | undefined;
-  if (!signedState) {
-    sendFrontendError('state_missing', '登录状态已失效，请重新发起登录');
-    return;
-  }
-
-  const oauthState = verifyOAuthState(signedState, config.WELFARE_JWT_SECRET);
+  const oauthState = verifyOAuthState(query.state, config.WELFARE_JWT_SECRET);
   if (!oauthState) {
     sendFrontendError('state_invalid', '登录状态校验失败，请重新登录');
-    return;
-  }
-
-  if (oauthState.state !== query.state) {
-    sendFrontendError('state_mismatch', 'OAuth state 不匹配');
     return;
   }
 
@@ -159,23 +134,17 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
       avatarUrl: profile.avatarUrl
     });
 
-    // 不再设置 session cookie，完全通过 handoff → localStorage → Authorization header 传递 token，
-    // 避免跨域 cookie 和 Firefox cookie partition 问题
-    res.clearCookie(LINUXDO_COOKIE_NAME, {
-      path: '/api/auth/linuxdo'
-    });
-
     const handoff = signSessionHandoff(
       {
         token,
-        redirectPath: oauthState.redirectPath,
+        redirectPath: sanitizeRedirectPath(oauthState.redirectPath),
         issuedAt: Date.now()
       },
       config.WELFARE_JWT_SECRET
     );
 
     frontendCallbackUrl.hash = buildFrontendCallbackHash({
-      redirect: oauthState.redirectPath,
+      redirect: sanitizeRedirectPath(oauthState.redirectPath),
       handoff
     });
     res.redirect(frontendCallbackUrl.toString());
