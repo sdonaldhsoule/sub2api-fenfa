@@ -4,6 +4,8 @@ import { Icon } from '../components/Icon';
 import { useAuth } from '../lib/auth';
 import { api, isUnauthorizedError } from '../lib/api';
 import type { CheckinHistoryItem, CheckinStatus, RedeemHistoryItem } from '../types';
+import { motion } from 'framer-motion';
+import { pageVariants } from '../lib/animations';
 
 function checkinStatusText(status: CheckinStatus | null): string {
   if (!status) return '-';
@@ -148,7 +150,13 @@ export function CheckinPage() {
   }
 
   return (
-    <div className="page">
+    <motion.div 
+      className="page"
+      variants={pageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+    >
       <div className="card">
         <div className="row topbar">
           <div>
@@ -294,6 +302,6 @@ export function CheckinPage() {
           ))}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

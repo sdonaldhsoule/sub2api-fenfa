@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import { useAuth } from './lib/auth';
 import { LoginPage } from './pages/LoginPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
@@ -77,27 +78,30 @@ function RequireAuth({
 }
 
 export default function App() {
+  const location = useLocation();
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/auth/callback" element={<AuthCallbackPage />} />
-      <Route
-        path="/checkin"
-        element={
-          <RequireAuth>
-            <CheckinPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <RequireAuth requireAdmin>
-            <AdminPage />
-          </RequireAuth>
-        }
-      />
-      <Route path="*" element={<Navigate to="/checkin" replace />} />
-    </Routes>
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route
+          path="/checkin"
+          element={
+            <RequireAuth>
+              <CheckinPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth requireAdmin>
+              <AdminPage />
+            </RequireAuth>
+          }
+        />
+        <Route path="*" element={<Navigate to="/checkin" replace />} />
+      </Routes>
+    </AnimatePresence>
   );
 }

@@ -2,6 +2,8 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { buildLinuxDoStartUrl } from '../lib/api';
 import { Icon } from '../components/Icon';
+import { motion } from 'framer-motion';
+import { pageVariants } from '../lib/animations';
 
 export function LoginPage() {
   const location = useLocation();
@@ -16,7 +18,13 @@ export function LoginPage() {
   }
 
   return (
-    <div className="page page-center">
+    <motion.div 
+      className="page page-center"
+      variants={pageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+    >
       <div className="card auth-card">
         <span className="eyebrow">福利站</span>
         <h1 className="hero-title">sub2api <span className="text-gradient">福利站</span></h1>
@@ -58,6 +66,6 @@ export function LoginPage() {
           使用 LinuxDo 登录 →
         </a>
       </div>
-    </div>
+    </motion.div>
   );
 }

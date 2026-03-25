@@ -18,6 +18,8 @@ import type {
   DailyStats,
   WhitelistItem
 } from '../types';
+import { motion } from 'framer-motion';
+import { pageVariants } from '../lib/animations';
 
 type AdminSection = 'overview' | 'checkins' | 'redeemCodes' | 'redeemClaims' | 'whitelist';
 
@@ -397,7 +399,13 @@ export function AdminPage() {
   const urgentTotal = overviewFailedCheckinsTotal + overviewFailedRedeemClaimsTotal;
 
   return (
-    <div className="page admin-dashboard-page">
+    <motion.div 
+      className="page admin-dashboard-page"
+      variants={pageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+    >
       <div className="admin-dashboard-shell">
         <aside className="admin-dashboard-sidebar">
           <div className="admin-brand">
@@ -556,6 +564,6 @@ export function AdminPage() {
           )}
         </main>
       </div>
-    </div>
+    </motion.div>
   );
 }
