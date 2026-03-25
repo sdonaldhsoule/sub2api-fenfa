@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth';
 import { api, isUnauthorizedError } from '../lib/api';
 import type { CheckinHistoryItem, CheckinStatus, RedeemHistoryItem } from '../types';
 import { motion } from 'framer-motion';
-import { pageVariants } from '../lib/animations';
+import { pageVariants, staggerContainer, staggerItem } from '../lib/animations';
 
 function checkinStatusText(status: CheckinStatus | null): string {
   if (!status) return '-';
@@ -157,151 +157,142 @@ export function CheckinPage() {
       animate="animate"
       exit="exit"
     >
-      <div className="card">
-        <div className="row topbar">
-          <div>
-            <span className="eyebrow">签到中心</span>
-            <h1 className="hero-title">每日<span className="text-gradient">签到</span></h1>
-            <div className="user-info">
-              {user?.avatar_url && (
-                <img
-                  className="user-avatar"
-                  src={user.avatar_url}
-                  alt={user.username}
-                />
-              )}
-              <p className="muted" style={{ marginTop: 0 }}>
-                {user?.username}（sub2api #{user?.sub2api_user_id}）
-              </p>
+      <motion.div variants={staggerContainer} initial="initial" animate="animate" className="checkin-layout">
+        
+        {/* === Header === */}
+        <motion.header variants={staggerItem} className="checkin-header">
+          <div className="user-info">
+            {user?.avatar_url && (
+              <img
+                className="user-avatar"
+                src={user.avatar_url}
+                alt={user.username}
+              />
+            )}
+            <div>
+              <h1 className="hero-title" style={{ fontSize: 24, marginBottom: 2 }}>
+                欢迎回来, <span className="text-gradient">{user?.username}</span>
+              </h1>
+              <p className="muted" style={{ margin: 0 }}>sub2api #{user?.sub2api_user_id}</p>
             </div>
           </div>
           <div className="actions">
             {user?.is_admin && (
               <Link to="/admin" className="button ghost">
-                <span className="button-content">
-                  <Icon name="settings" className="icon" size={16} />
-                  <span>后台管理</span>
-                </span>
+                <Icon name="settings" size={16} /> 后台管理
               </Link>
             )}
-            <button className="button" onClick={handleLogout}>
-              退出
-            </button>
+            <button className="button danger" onClick={handleLogout}>退出</button>
           </div>
-        </div>
+        </motion.header>
 
-        {status && (
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-label">业务日</div>
-              <div className="stat-value">{status.checkin_date}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">时区</div>
-              <div className="stat-value">{status.timezone}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">今日奖励</div>
-              <div className="stat-value warning">{status.daily_reward_balance}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">签到状态</div>
-              <div className={`stat-value ${status.checked_in ? 'success' : ''}`}>
-                {checkinStatusText(status)}
+        {/* === Hero Widget === */}
+        <motion.div variants={staggerItem} className="checkin-hero-widget">
+          {status ? (
+            <>
+              <div className="checkin-hero-amount">
+                ${status.daily_reward_balance.toFixed(2)}
               </div>
-            </div>
+              <div className="checkin-hero-status">
+                {status.checkin_date} ({status.timezone}) · 今日奖励额度
+              </div>
+              <button
+                className={`button checkin-big-btn ${status.checked_in ? 'ghost' : 'primary'}`}
+                disabled={!canCheckin}
+                onClick={handleCheckin}
+              >
+                {submitting ? '签到中...' : status.checked_in ? '✓ 今日已签到' : '立即签到领取'}
+              </button>
+              {error && !redeemSubmitting && <p className="alert error" style={{marginTop: 16}}>{error}</p>}
+              {success && !redeemSubmitting && <p className="alert success" style={{marginTop: 16}}>{success}</p>}
+            </>
+          ) : (
+            <p className="loading-text">加载状态中...</p>
+          )}
+        </motion.div>
+
+        {/* === Redeem Panel === */}
+        <motion.div variants={staggerItem} className="panel">
+          <div className="section-head">
+            <h2 className="section-title">兑换福利码</h2>
           </div>
-        )}
-
-        {success && <p className="alert success">{success}</p>}
-        {error && <p className="alert error">{error}</p>}
-
-        <div className="row section-bar">
-          <h2 className="section-title">签到操作</h2>
-          <button className="button primary" disabled={!canCheckin} onClick={handleCheckin}>
-            {getCheckinButtonText(status, submitting) === '签到中...' ? (
-              '签到中...'
-            ) : (
-              <span className="button-content">
-                <Icon name="gift" className="icon" size={16} />
-                <span>{getCheckinButtonText(status, submitting)}</span>
-              </span>
-            )}
-          </button>
-        </div>
-
-        <h2 className="section-title">
-          <span className="section-title-content">
-            <Icon name="shield" className="icon icon-accent" />
-            <span>兑换码兑换</span>
-          </span>
-        </h2>
-        <div className="panel">
           <div className="redeem-form-row">
-            <label className="field redeem-field">
-              <span>兑换码</span>
+            <div className="field redeem-field">
+              <span>福利码 (Code)</span>
               <input
                 type="text"
                 value={redeemCodeInput}
-                maxLength={64}
-                placeholder="输入兑换码后直接兑换额度"
-                onChange={(event) => setRedeemCodeInput(event.target.value)}
+                onChange={(e) => setRedeemCodeInput(e.target.value)}
+                placeholder="在此输入福利分发码"
+                disabled={redeemSubmitting}
               />
-            </label>
-            <button
-              className="button primary redeem-action"
-              disabled={!canRedeem}
-              onClick={handleRedeem}
-            >
-              {redeemSubmitting ? '兑换中...' : '立即兑换'}
-            </button>
+            </div>
+            <div className="redeem-action">
+              <button
+                className="button primary wide"
+                disabled={!canRedeem}
+                onClick={handleRedeem}
+              >
+                {redeemSubmitting ? '兑换中...' : '立即兑换'}
+              </button>
+            </div>
           </div>
+          {success && !redeemSubmitting && success.includes('兑换成功') && (
+            <div className="alert success">{success}</div>
+          )}
+          {error && !redeemSubmitting && error.includes('兑换失败') && (
+            <div className="alert error">{error}</div>
+          )}
+        </motion.div>
+
+        {/* === History Columns === */}
+        <div className="checkin-history-columns">
+          <motion.div variants={staggerItem} className="panel" style={{ margin: 0 }}>
+            <div className="section-head">
+              <h2 className="section-title" style={{ fontSize: 20 }}>签到记录</h2>
+            </div>
+            {history.length === 0 ? (
+              <p className="muted">暂无历史记录</p>
+            ) : (
+              <div className="list">
+                {history.map((item) => (
+                  <div key={item.id} className="list-item" style={{ gridTemplateColumns: 'minmax(120px, 1fr) 70px auto', padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <strong style={{ fontSize: 14 }}>{item.checkin_date}</strong>
+                      <span className="muted" style={{ fontSize: 13 }}>{new Date(item.created_at).toLocaleTimeString()}</span>
+                    </div>
+                    {renderGrantTag(item.grant_status)}
+                    <span style={{ fontWeight: 600, textAlign: 'right', color: 'var(--aurora-1)' }}>+{item.reward_balance}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+
+          <motion.div variants={staggerItem} className="panel" style={{ margin: 0 }}>
+            <div className="section-head">
+              <h2 className="section-title" style={{ fontSize: 20 }}>兑换记录</h2>
+            </div>
+            {redeemHistory.length === 0 ? (
+              <p className="muted">暂无历史记录</p>
+            ) : (
+              <div className="list">
+                {redeemHistory.map((item) => (
+                  <div key={item.id} className="list-item" style={{ gridTemplateColumns: 'minmax(120px, 1fr) 70px auto', padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <strong style={{ fontSize: 14 }}>{item.redeem_code}</strong>
+                      <span className="muted" style={{ fontSize: 13 }}>{new Date(item.claimed_at).toLocaleTimeString()}</span>
+                    </div>
+                    {renderGrantTag(item.grant_status)}
+                    <span style={{ fontWeight: 600, textAlign: 'right', color: 'var(--aurora-1)' }}>+{item.reward_balance}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
         </div>
 
-        <h2 className="section-title">签到历史</h2>
-        <div className="list">
-          {history.length === 0 && <p className="muted">暂无签到记录</p>}
-          {history.map((item) => (
-            <div key={item.id} className="list-item">
-              <div className="stack">
-                <strong>{item.checkin_date}</strong>
-                <span className="muted" style={{ fontSize: 13 }}>
-                  奖励 {item.reward_balance}
-                </span>
-              </div>
-              {renderGrantTag(item.grant_status)}
-              <span className="muted" style={{ fontSize: 13 }}>
-                {new Date(item.created_at).toLocaleString()}
-              </span>
-              <span className="muted" style={{ fontSize: 13 }}>
-                {item.grant_error || '发放成功'}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <h2 className="section-title">兑换记录</h2>
-        <div className="list">
-          {redeemHistory.length === 0 && <p className="muted">暂无兑换记录</p>}
-          {redeemHistory.map((item) => (
-            <div key={item.id} className="list-item">
-              <div className="stack">
-                <strong>{item.redeem_title}</strong>
-                <span className="muted" style={{ fontSize: 13 }}>
-                  兑换码 {item.redeem_code}
-                </span>
-              </div>
-              {renderGrantTag(item.grant_status)}
-              <span className="muted" style={{ fontSize: 13 }}>
-                发放 {item.reward_balance}
-              </span>
-              <span className="muted" style={{ fontSize: 13 }}>
-                {item.grant_error || new Date(item.created_at).toLocaleString()}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }
