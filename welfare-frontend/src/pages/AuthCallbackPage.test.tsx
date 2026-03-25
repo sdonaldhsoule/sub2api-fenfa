@@ -127,4 +127,42 @@ describe('AuthCallbackPage', () => {
     expect(exchangeSessionHandoffMock).toHaveBeenCalledTimes(1);
     expect(window.localStorage.getItem(SESSION_TOKEN_STORAGE_KEY)).toBe('session-token');
   });
+
+  it('会在首次会话校验失败时带着同一个 token 自动重试', async () => {
+    refreshMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        sub2api_user_id: 1
+      });
+    exchangeSessionHandoffMock.mockResolvedValue({
+      session_token: 'session-token',
+      redirect: '/checkin'
+    });
+    mockUseAuth.mockReturnValue({
+      status: 'loading',
+      user: null,
+      error: null,
+      refresh: refreshMock,
+      logout: vi.fn()
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={['/auth/callback']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/checkin" element={<div>签到页</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('签到页')).toBeInTheDocument();
+    });
+
+    expect(refreshMock).toHaveBeenCalledTimes(2);
+    expect(window.localStorage.getItem(SESSION_TOKEN_STORAGE_KEY)).toBe('session-token');
+  });
 });

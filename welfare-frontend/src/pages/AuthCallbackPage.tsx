@@ -7,7 +7,35 @@ import {
   clearAuthCallbackParams,
   exchangeSessionHandoffOnce
 } from '../lib/auth-callback';
-import { storeSessionToken } from '../lib/session-token';
+import { getStoredSessionToken, storeSessionToken } from '../lib/session-token';
+
+async function wait(ms: number): Promise<void> {
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function refreshSessionAfterExchange(
+  sessionToken: string,
+  refresh: () => Promise<unknown>
+): Promise<boolean> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (getStoredSessionToken() !== sessionToken) {
+      storeSessionToken(sessionToken);
+    }
+
+    const user = await refresh();
+    if (user) {
+      return true;
+    }
+
+    if (attempt < 2) {
+      await wait(200 * (attempt + 1));
+    }
+  }
+
+  return false;
+}
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
@@ -48,8 +76,18 @@ export function AuthCallbackPage() {
           }
 
           storeSessionToken(result.session_token);
-          await refresh();
+          const established = await refreshSessionAfterExchange(
+            result.session_token,
+            refresh
+          );
           if (cancelled) {
+            return;
+          }
+
+          if (!established) {
+            clearAuthCallbackParams();
+            setIsError(true);
+            setMessage('登录失败：会话已换取成功，但校验未通过，请重新登录');
             return;
           }
 
