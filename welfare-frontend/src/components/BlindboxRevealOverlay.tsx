@@ -168,7 +168,7 @@ export function BlindboxRevealOverlay({
                   <motion.div
                     className="destiny-stick-wrapper"
                     initial={{ y: 50, scale: 0.4, rotate: -15, opacity: 0 }}
-                    animate={{ y: -80, scale: 1.15, rotate: 0, opacity: 1 }}
+                    animate={{ y: -20, scale: 1.15, rotate: 0, opacity: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
                     transition={{ type: 'spring', damping: 15, stiffness: 100, mass: 0.8 }}
                   >
