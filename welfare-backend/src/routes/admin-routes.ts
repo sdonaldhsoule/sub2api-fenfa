@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { config } from '../config.js';
 import { requireAuth } from '../middleware/auth-middleware.js';
+import {
+  createRateLimitMiddleware,
+  keyBySessionUser
+} from '../middleware/rate-limit-middleware.js';
 import { requireAdmin } from '../middleware/admin-middleware.js';
 import type { CheckinRecord, RedeemClaim, RedeemCode } from '../types/domain.js';
 import {
@@ -27,6 +32,9 @@ function toAdminCheckinPayload(record: CheckinRecord) {
     linuxdoSubject: record.linuxdoSubject,
     syntheticEmail: record.syntheticEmail,
     checkinDate: record.checkinDate,
+    checkinMode: record.checkinMode,
+    blindboxItemId: record.blindboxItemId,
+    blindboxTitle: record.checkinMode === 'blindbox' ? record.blindboxTitle || null : null,
     rewardBalance: record.rewardBalance,
     idempotencyKey: record.idempotencyKey,
     grantStatus: record.grantStatus,
@@ -86,6 +94,30 @@ function toAdminRedeemClaimPayload(item: RedeemClaim) {
   };
 }
 
+function toAdminBlindboxItemPayload(item: {
+  id: number;
+  title: string;
+  rewardBalance: number;
+  weight: number;
+  enabled: boolean;
+  notes: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}) {
+  return {
+    id: item.id,
+    title: item.title,
+    reward_balance: item.rewardBalance,
+    weight: item.weight,
+    enabled: item.enabled,
+    notes: item.notes,
+    sort_order: item.sortOrder,
+    created_at: item.createdAt,
+    updated_at: item.updatedAt
+  };
+}
+
 function parseOptionalDateTime(value: string | null | undefined) {
   if (value === undefined) {
     return {
@@ -124,6 +156,7 @@ function parseOptionalDateTime(value: string | null | undefined) {
 
 const settingsUpdateSchema = z.object({
   checkin_enabled: z.boolean().optional(),
+  blindbox_enabled: z.boolean().optional(),
   daily_reward_balance: z.number().positive().optional(),
   timezone: z.string().min(1).optional()
 });
@@ -171,9 +204,47 @@ const redeemClaimsQuerySchema = z.object({
   code: z.string().max(64).optional()
 });
 
+const blindboxItemCreateSchema = z.object({
+  title: z.string().min(1).max(80),
+  reward_balance: z.number().positive(),
+  weight: z.number().int().positive().max(1_000_000),
+  enabled: z.boolean().optional(),
+  notes: z.string().max(500).optional(),
+  sort_order: z.number().int().min(-9999).max(9999).optional()
+});
+
+const blindboxItemUpdateSchema = z.object({
+  title: z.string().min(1).max(80).optional(),
+  reward_balance: z.number().positive().optional(),
+  weight: z.number().int().positive().max(1_000_000).optional(),
+  enabled: z.boolean().optional(),
+  notes: z.string().max(500).optional(),
+  sort_order: z.number().int().min(-9999).max(9999).optional()
+});
+
+const adminMutationRateLimit = createRateLimitMiddleware({
+  bucket: 'admin-mutation',
+  limit: config.WELFARE_RATE_LIMIT_ADMIN_MUTATION_LIMIT,
+  windowMs: config.WELFARE_RATE_LIMIT_ADMIN_MUTATION_WINDOW_MS,
+  keyGenerator: keyBySessionUser,
+  message: '后台写操作过于频繁，请稍后再试'
+});
+
 export const adminRouter = Router();
 
+adminRouter.use((_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 adminRouter.use(requireAuth, requireAdmin);
+adminRouter.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    adminMutationRateLimit(req, res, next);
+    return;
+  }
+
+  next();
+});
 
 adminRouter.get('/overview', asyncHandler(async (_req, res) => {
   const [settings, stats, whitelist] = await Promise.all([
@@ -185,6 +256,7 @@ adminRouter.get('/overview', asyncHandler(async (_req, res) => {
   ok(res, {
     settings: {
       checkin_enabled: settings.checkinEnabled,
+      blindbox_enabled: settings.blindboxEnabled,
       daily_reward_balance: settings.dailyRewardBalance,
       timezone: settings.timezone
     },
@@ -197,6 +269,7 @@ adminRouter.get('/settings', asyncHandler(async (_req, res) => {
   const settings = await checkinService.getAdminSettings();
   ok(res, {
     checkin_enabled: settings.checkinEnabled,
+    blindbox_enabled: settings.blindboxEnabled,
     daily_reward_balance: settings.dailyRewardBalance,
     timezone: settings.timezone
   });
@@ -217,11 +290,13 @@ adminRouter.put('/settings', asyncHandler(async (req, res) => {
 
   const settings = await checkinService.updateAdminSettings({
     checkinEnabled: payload.checkin_enabled,
+    blindboxEnabled: payload.blindbox_enabled,
     dailyRewardBalance: payload.daily_reward_balance,
     timezone: payload.timezone
   });
   ok(res, {
     checkin_enabled: settings.checkinEnabled,
+    blindbox_enabled: settings.blindboxEnabled,
     daily_reward_balance: settings.dailyRewardBalance,
     timezone: settings.timezone
   });
@@ -321,12 +396,87 @@ adminRouter.delete('/whitelist/:id', asyncHandler(async (req, res) => {
     fail(res, 400, 'BAD_REQUEST', 'id 非法');
     return;
   }
+
+  const whitelist = await welfareRepository.listAdminWhitelist();
+  const currentUser = req.sessionUser!;
+  const target = whitelist.find((item) => item.id === id);
+
+  if (!target) {
+    fail(res, 404, 'NOT_FOUND', '白名单记录不存在');
+    return;
+  }
+
+  if (target.linuxdoSubject === currentUser.linuxdoSubject) {
+    fail(res, 409, 'WHITELIST_CONFLICT', '不能删除当前登录管理员，请使用其他管理员账号操作');
+    return;
+  }
+
+  if (whitelist.length - 1 < 1) {
+    fail(res, 409, 'WHITELIST_CONFLICT', '至少保留一名管理员');
+    return;
+  }
+
   const deleted = await welfareRepository.removeAdminWhitelist(id);
   if (!deleted) {
     fail(res, 404, 'NOT_FOUND', '白名单记录不存在');
     return;
   }
   ok(res, { deleted: true });
+}));
+
+adminRouter.get('/blindbox/items', asyncHandler(async (_req, res) => {
+  const items = await checkinService.listAdminBlindboxItems();
+  ok(res, items.map((item) => toAdminBlindboxItemPayload(item)));
+}));
+
+adminRouter.post('/blindbox/items', asyncHandler(async (req, res) => {
+  const parsed = blindboxItemCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    fail(res, 400, 'BAD_REQUEST', parsed.error.issues[0]?.message ?? '参数非法');
+    return;
+  }
+
+  const item = await checkinService.createAdminBlindboxItem({
+    title: parsed.data.title.trim(),
+    rewardBalance: parsed.data.reward_balance,
+    weight: parsed.data.weight,
+    enabled: parsed.data.enabled ?? true,
+    notes: parsed.data.notes?.trim() ?? '',
+    sortOrder: parsed.data.sort_order ?? 0
+  });
+  ok(res, toAdminBlindboxItemPayload(item));
+}));
+
+adminRouter.patch('/blindbox/items/:id', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    fail(res, 400, 'BAD_REQUEST', 'id 非法');
+    return;
+  }
+
+  const parsed = blindboxItemUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    fail(res, 400, 'BAD_REQUEST', parsed.error.issues[0]?.message ?? '参数非法');
+    return;
+  }
+
+  try {
+    const item = await checkinService.updateAdminBlindboxItem(id, {
+      title: parsed.data.title?.trim(),
+      rewardBalance: parsed.data.reward_balance,
+      weight: parsed.data.weight,
+      enabled: parsed.data.enabled,
+      notes: parsed.data.notes?.trim(),
+      sortOrder: parsed.data.sort_order
+    });
+    ok(res, toAdminBlindboxItemPayload(item));
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      fail(res, 404, 'NOT_FOUND', error.message);
+      return;
+    }
+    throw error;
+  }
 }));
 
 adminRouter.get('/redeem-codes', asyncHandler(async (_req, res) => {

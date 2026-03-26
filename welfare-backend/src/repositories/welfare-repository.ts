@@ -1,5 +1,10 @@
 import type { Pool, PoolClient } from 'pg';
-import type { CheckinRecord, WelfareSettings } from '../types/domain.js';
+import type {
+  BlindboxItem,
+  CheckinMode,
+  CheckinRecord,
+  WelfareSettings
+} from '../types/domain.js';
 import { config } from '../config.js';
 
 function toNumber(value: unknown): number {
@@ -13,6 +18,9 @@ export interface CreateCheckinInput {
   linuxdoSubject: string;
   syntheticEmail: string;
   checkinDate: string;
+  checkinMode: CheckinMode;
+  blindboxItemId?: number | null;
+  blindboxTitle?: string;
   rewardBalance: number;
   idempotencyKey: string;
 }
@@ -24,22 +32,47 @@ export interface AdminWhitelistItem {
   createdAt: string;
 }
 
+export interface CreateBlindboxItemInput {
+  title: string;
+  rewardBalance: number;
+  weight: number;
+  enabled: boolean;
+  notes: string;
+  sortOrder: number;
+}
+
+export interface UpdateBlindboxItemInput {
+  title?: string;
+  rewardBalance?: number;
+  weight?: number;
+  enabled?: boolean;
+  notes?: string;
+  sortOrder?: number;
+}
+
 export class WelfareRepository {
   constructor(private readonly db: Pool) {}
 
   async getSettings(): Promise<WelfareSettings> {
     const result = await this.db.query(
-      `SELECT checkin_enabled, daily_reward_balance, timezone
+      `SELECT checkin_enabled, blindbox_enabled, daily_reward_balance, timezone
        FROM welfare_settings
        WHERE id = 1`
     );
     if (result.rowCount === 0) {
       await this.db.query(
-        `INSERT INTO welfare_settings (id, checkin_enabled, daily_reward_balance, timezone)
-         VALUES (1, $1, $2, $3)
+        `INSERT INTO welfare_settings (
+           id,
+           checkin_enabled,
+           blindbox_enabled,
+           daily_reward_balance,
+           timezone
+         )
+         VALUES (1, $1, $2, $3, $4)
          ON CONFLICT (id) DO NOTHING`,
         [
           config.DEFAULT_CHECKIN_ENABLED,
+          false,
           config.DEFAULT_DAILY_REWARD,
           config.DEFAULT_TIMEZONE
         ]
@@ -50,6 +83,7 @@ export class WelfareRepository {
     const row = result.rows[0];
     return {
       checkinEnabled: Boolean(row.checkin_enabled),
+      blindboxEnabled: Boolean(row.blindbox_enabled),
       dailyRewardBalance: toNumber(row.daily_reward_balance),
       timezone: String(row.timezone)
     };
@@ -59,19 +93,118 @@ export class WelfareRepository {
     const current = await this.getSettings();
     const next = {
       checkinEnabled: input.checkinEnabled ?? current.checkinEnabled,
+      blindboxEnabled: input.blindboxEnabled ?? current.blindboxEnabled,
       dailyRewardBalance: input.dailyRewardBalance ?? current.dailyRewardBalance,
       timezone: input.timezone ?? current.timezone
     };
     await this.db.query(
       `UPDATE welfare_settings
        SET checkin_enabled = $1,
-           daily_reward_balance = $2,
-           timezone = $3,
+           blindbox_enabled = $2,
+           daily_reward_balance = $3,
+           timezone = $4,
            updated_at = NOW()
        WHERE id = 1`,
-      [next.checkinEnabled, next.dailyRewardBalance, next.timezone]
+      [
+        next.checkinEnabled,
+        next.blindboxEnabled,
+        next.dailyRewardBalance,
+        next.timezone
+      ]
     );
     return next;
+  }
+
+  async listBlindboxItems(enabledOnly = false): Promise<BlindboxItem[]> {
+    const conditions = enabledOnly ? 'WHERE enabled = TRUE' : '';
+    const result = await this.db.query(
+      `SELECT *
+       FROM welfare_blindbox_items
+       ${conditions}
+       ORDER BY enabled DESC, sort_order ASC, reward_balance ASC, id ASC`
+    );
+
+    return result.rows.map((row) => this.mapBlindboxItem(row));
+  }
+
+  async getBlindboxItemById(id: number): Promise<BlindboxItem | null> {
+    const result = await this.db.query(
+      `SELECT *
+       FROM welfare_blindbox_items
+       WHERE id = $1
+       LIMIT 1`,
+      [id]
+    );
+
+    return result.rowCount ? this.mapBlindboxItem(result.rows[0]) : null;
+  }
+
+  async createBlindboxItem(input: CreateBlindboxItemInput): Promise<BlindboxItem> {
+    const result = await this.db.query(
+      `INSERT INTO welfare_blindbox_items (
+         title,
+         reward_balance,
+         weight,
+         enabled,
+         notes,
+         sort_order
+       )
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        input.title,
+        input.rewardBalance,
+        input.weight,
+        input.enabled,
+        input.notes,
+        input.sortOrder
+      ]
+    );
+
+    return this.mapBlindboxItem(result.rows[0]);
+  }
+
+  async updateBlindboxItem(
+    id: number,
+    input: UpdateBlindboxItemInput
+  ): Promise<BlindboxItem | null> {
+    const current = await this.getBlindboxItemById(id);
+    if (!current) {
+      return null;
+    }
+
+    const next = {
+      title: input.title ?? current.title,
+      rewardBalance: input.rewardBalance ?? current.rewardBalance,
+      weight: input.weight ?? current.weight,
+      enabled: input.enabled ?? current.enabled,
+      notes: input.notes ?? current.notes,
+      sortOrder: input.sortOrder ?? current.sortOrder
+    };
+
+    const result = await this.db.query(
+      `UPDATE welfare_blindbox_items
+       SET title = $2,
+           reward_balance = $3,
+           weight = $4,
+           enabled = $5,
+           notes = $6,
+           sort_order = $7,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [
+        id,
+        next.title,
+        next.rewardBalance,
+        next.weight,
+        next.enabled,
+        next.notes,
+        next.sortOrder
+      ]
+    );
+
+    return result.rowCount ? this.mapBlindboxItem(result.rows[0]) : null;
   }
 
   async hasAdminSubject(linuxdoSubject: string): Promise<boolean> {
@@ -169,11 +302,14 @@ export class WelfareRepository {
          linuxdo_subject,
          synthetic_email,
          checkin_date,
+         checkin_mode,
+         blindbox_item_id,
+         blindbox_title,
          reward_balance,
          idempotency_key,
          grant_status
        )
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
        ON CONFLICT (sub2api_user_id, checkin_date) DO NOTHING
        RETURNING *`,
       [
@@ -181,6 +317,9 @@ export class WelfareRepository {
         input.linuxdoSubject,
         input.syntheticEmail,
         input.checkinDate,
+        input.checkinMode,
+        input.blindboxItemId ?? null,
+        input.blindboxTitle ?? '',
         input.rewardBalance,
         input.idempotencyKey
       ]
@@ -367,6 +506,20 @@ export class WelfareRepository {
     }
   }
 
+  private mapBlindboxItem(row: Record<string, unknown>): BlindboxItem {
+    return {
+      id: Number(row.id),
+      title: String(row.title),
+      rewardBalance: toNumber(row.reward_balance),
+      weight: Number(row.weight),
+      enabled: Boolean(row.enabled),
+      notes: String(row.notes ?? ''),
+      sortOrder: Number(row.sort_order ?? 0),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at ?? row.created_at)
+    };
+  }
+
   private mapCheckin(row: Record<string, unknown>): CheckinRecord {
     return {
       id: Number(row.id),
@@ -374,6 +527,11 @@ export class WelfareRepository {
       linuxdoSubject: String(row.linuxdo_subject),
       syntheticEmail: String(row.synthetic_email),
       checkinDate: String(row.checkin_date),
+      checkinMode:
+        row.checkin_mode === 'blindbox' ? 'blindbox' : 'normal',
+      blindboxItemId:
+        row.blindbox_item_id == null ? null : Number(row.blindbox_item_id),
+      blindboxTitle: String(row.blindbox_title ?? ''),
       rewardBalance: toNumber(row.reward_balance),
       idempotencyKey: String(row.idempotency_key),
       grantStatus: String(row.grant_status) as CheckinRecord['grantStatus'],

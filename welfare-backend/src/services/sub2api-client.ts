@@ -29,6 +29,16 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+export class Sub2apiResponseError extends Error {
+  readonly body: string;
+
+  constructor(message: string, body = '') {
+    super(message);
+    this.name = 'Sub2apiResponseError';
+    this.body = body;
+  }
+}
+
 function isRetriableSub2apiError(error: unknown): boolean {
   if (error instanceof HttpError) {
     return [408, 425, 429, 500, 502, 503, 504].includes(error.status);
@@ -55,7 +65,7 @@ export class Sub2apiClient {
     try {
       return JSON.parse(body) as Sub2apiEnvelope<T>;
     } catch {
-      throw new Error(`${context}：sub2api 返回了无法解析的响应`);
+      throw new Sub2apiResponseError(`${context}：sub2api 返回了无法解析的响应`, body);
     }
   }
 
@@ -113,7 +123,10 @@ export class Sub2apiClient {
 
       const envelope = this.parseEnvelope<AdminUsersPage>(body, '查询 sub2api 用户失败');
       if (envelope.code !== 0 || !envelope.data) {
-        throw new Error(`查询 sub2api 用户失败：${envelope.message || 'unknown error'}`);
+        throw new Sub2apiResponseError(
+          `查询 sub2api 用户失败：${envelope.message || 'unknown error'}`,
+          body
+        );
       }
 
       return envelope;
@@ -175,7 +188,10 @@ export class Sub2apiClient {
 
       const envelope = this.parseEnvelope<AdminUserLite>(body, 'sub2api 加余额失败');
       if (envelope.code !== 0) {
-        throw new Error(`sub2api 加余额失败：${envelope.message || 'unknown error'}`);
+        throw new Sub2apiResponseError(
+          `sub2api 加余额失败：${envelope.message || 'unknown error'}`,
+          body
+        );
       }
 
       return {

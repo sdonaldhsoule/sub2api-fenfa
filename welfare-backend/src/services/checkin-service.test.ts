@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CheckinRecord } from '../types/domain.js';
+import type { BlindboxItem, CheckinRecord } from '../types/domain.js';
 
 process.env.DATABASE_URL ??= 'postgres://localhost:5432/test';
 process.env.WELFARE_FRONTEND_URL ??= 'http://localhost:5173';
@@ -13,11 +13,19 @@ process.env.LINUXDO_REDIRECT_URI ??= 'http://localhost:8787/api/auth/linuxdo/cal
 process.env.SUB2API_BASE_URL ??= 'https://example.com';
 process.env.SUB2API_ADMIN_API_KEY ??= 'test-api-key';
 
-const { CheckinService, ConflictError, NotFoundError } = await import('./checkin-service.js');
+const {
+  CheckinService,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError
+} = await import('./checkin-service.js');
 
 function createRepositoryMock() {
   return {
     getSettings: vi.fn(),
+    listBlindboxItems: vi.fn(),
+    createBlindboxItem: vi.fn(),
+    updateBlindboxItem: vi.fn(),
     getCheckinByDate: vi.fn(),
     getCheckinById: vi.fn(),
     createCheckinPending: vi.fn(),
@@ -39,15 +47,18 @@ function createSub2apiMock() {
   };
 }
 
-function createFailedRecord(): CheckinRecord {
+function createNormalFailedRecord(): CheckinRecord {
   return {
     id: 7,
     sub2apiUserId: 42,
     linuxdoSubject: 'linuxdo-user',
     syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
     checkinDate: '2026-03-06',
+    checkinMode: 'normal',
+    blindboxItemId: null,
+    blindboxTitle: '',
     rewardBalance: 10,
-    idempotencyKey: 'welfare-checkin:42:2026-03-06',
+    idempotencyKey: 'welfare-checkin:normal:42:2026-03-06',
     grantStatus: 'failed',
     grantError: 'network timeout',
     sub2apiRequestId: '',
@@ -56,17 +67,64 @@ function createFailedRecord(): CheckinRecord {
   };
 }
 
-describe('checkin service retryFailedCheckin', () => {
+function createBlindboxFailedRecord(): CheckinRecord {
+  return {
+    id: 8,
+    sub2apiUserId: 42,
+    linuxdoSubject: 'linuxdo-user',
+    syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
+    checkinDate: '2026-03-06',
+    checkinMode: 'blindbox',
+    blindboxItemId: 3,
+    blindboxTitle: '好运签',
+    rewardBalance: 15,
+    idempotencyKey: 'welfare-checkin:blindbox:42:2026-03-06',
+    grantStatus: 'failed',
+    grantError: 'network timeout',
+    sub2apiRequestId: '',
+    createdAt: '2026-03-06T10:00:00.000Z',
+    updatedAt: '2026-03-06T10:00:00.000Z'
+  };
+}
+
+function createBlindboxItems(): BlindboxItem[] {
+  return [
+    {
+      id: 1,
+      title: '安稳签',
+      rewardBalance: 8,
+      weight: 50,
+      enabled: true,
+      notes: '',
+      sortOrder: 0,
+      createdAt: '2026-03-01T00:00:00.000Z',
+      updatedAt: '2026-03-01T00:00:00.000Z'
+    },
+    {
+      id: 3,
+      title: '好运签',
+      rewardBalance: 15,
+      weight: 50,
+      enabled: true,
+      notes: '',
+      sortOrder: 1,
+      createdAt: '2026-03-01T00:00:00.000Z',
+      updatedAt: '2026-03-01T00:00:00.000Z'
+    }
+  ];
+}
+
+describe('checkin service', () => {
   const repository = createRepositoryMock();
   const sub2api = createSub2apiMock();
-  const service = new CheckinService(repository, sub2api);
+  const service = new CheckinService(repository, sub2api, () => 0.75);
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('成功重试失败签到并返回更新后的记录', async () => {
-    const failedRecord = createFailedRecord();
+    const failedRecord = createNormalFailedRecord();
     const pendingRecord: CheckinRecord = {
       ...failedRecord,
       grantStatus: 'pending',
@@ -91,9 +149,7 @@ describe('checkin service retryFailedCheckin', () => {
 
     const result = await service.retryFailedCheckin(failedRecord.id);
 
-    expect(repository.markCheckinPendingRetry).toHaveBeenCalledWith(
-      failedRecord.id
-    );
+    expect(repository.markCheckinPendingRetry).toHaveBeenCalledWith(failedRecord.id);
     expect(sub2api.addUserBalance).toHaveBeenCalledWith({
       userId: failedRecord.sub2apiUserId,
       amount: failedRecord.rewardBalance,
@@ -116,7 +172,7 @@ describe('checkin service retryFailedCheckin', () => {
   });
 
   it('补发失败时会回写失败状态并继续抛错', async () => {
-    const failedRecord = createFailedRecord();
+    const failedRecord = createNormalFailedRecord();
     const pendingRecord: CheckinRecord = {
       ...failedRecord,
       grantStatus: 'pending',
@@ -139,7 +195,7 @@ describe('checkin service retryFailedCheckin', () => {
 
   it('成功状态不允许重复补发', async () => {
     repository.getCheckinById.mockResolvedValue({
-      ...createFailedRecord(),
+      ...createNormalFailedRecord(),
       grantStatus: 'success',
       grantError: ''
     } satisfies CheckinRecord);
@@ -149,7 +205,7 @@ describe('checkin service retryFailedCheckin', () => {
   });
 
   it('普通签到重试失败记录时保留原始奖励值', async () => {
-    const failedRecord = createFailedRecord();
+    const failedRecord = createNormalFailedRecord();
     const pendingRecord: CheckinRecord = {
       ...failedRecord,
       grantStatus: 'pending',
@@ -158,10 +214,10 @@ describe('checkin service retryFailedCheckin', () => {
 
     repository.getSettings.mockResolvedValue({
       checkinEnabled: true,
+      blindboxEnabled: true,
       dailyRewardBalance: 20,
       timezone: 'Asia/Shanghai'
     });
-    repository.createCheckinPending.mockResolvedValue(null);
     repository.getCheckinByDate.mockResolvedValue(failedRecord);
     repository.markCheckinPendingRetry.mockResolvedValue(pendingRecord);
     repository.markCheckinSuccess.mockResolvedValue(undefined);
@@ -186,11 +242,12 @@ describe('checkin service retryFailedCheckin', () => {
       idempotencyKey: failedRecord.idempotencyKey
     });
     expect(result.reward_balance).toBe(failedRecord.rewardBalance);
+    expect(result.checkin_mode).toBe('normal');
   });
 
   it('普通签到会接管超时 pending 记录', async () => {
     const stalePending: CheckinRecord = {
-      ...createFailedRecord(),
+      ...createNormalFailedRecord(),
       grantStatus: 'pending',
       grantError: '',
       updatedAt: '2026-03-06T09:00:00.000Z'
@@ -205,10 +262,10 @@ describe('checkin service retryFailedCheckin', () => {
 
     repository.getSettings.mockResolvedValue({
       checkinEnabled: true,
+      blindboxEnabled: true,
       dailyRewardBalance: stalePending.rewardBalance,
       timezone: 'UTC'
     });
-    repository.createCheckinPending.mockResolvedValue(null);
     repository.getCheckinByDate.mockResolvedValue(stalePending);
     repository.claimStalePending.mockResolvedValue(recoveredPending);
     repository.markCheckinSuccess.mockResolvedValue(undefined);
@@ -233,7 +290,7 @@ describe('checkin service retryFailedCheckin', () => {
 
   it('普通签到遇到未超时 pending 记录时继续阻止重试', async () => {
     const freshPending: CheckinRecord = {
-      ...createFailedRecord(),
+      ...createNormalFailedRecord(),
       grantStatus: 'pending',
       grantError: '',
       updatedAt: '2026-03-06T10:00:45.000Z'
@@ -244,10 +301,10 @@ describe('checkin service retryFailedCheckin', () => {
 
     repository.getSettings.mockResolvedValue({
       checkinEnabled: true,
+      blindboxEnabled: true,
       dailyRewardBalance: freshPending.rewardBalance,
       timezone: 'UTC'
     });
-    repository.createCheckinPending.mockResolvedValue(null);
     repository.getCheckinByDate.mockResolvedValue(freshPending);
 
     await expect(
@@ -264,5 +321,152 @@ describe('checkin service retryFailedCheckin', () => {
     expect(sub2api.addUserBalance).not.toHaveBeenCalled();
 
     vi.useRealTimers();
+  });
+
+  it('盲盒签到会抽中奖项并快照奖励值', async () => {
+    const blindboxItems = createBlindboxItems();
+    repository.getSettings.mockResolvedValue({
+      checkinEnabled: true,
+      blindboxEnabled: true,
+      dailyRewardBalance: 10,
+      timezone: 'UTC'
+    });
+    repository.getCheckinByDate.mockResolvedValueOnce(null);
+    repository.listBlindboxItems.mockResolvedValue(blindboxItems);
+    repository.createCheckinPending.mockResolvedValue({
+      id: 11,
+      sub2apiUserId: 42,
+      linuxdoSubject: 'linuxdo-user',
+      syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
+      checkinDate: '2026-03-06',
+      checkinMode: 'blindbox',
+      blindboxItemId: 3,
+      blindboxTitle: '好运签',
+      rewardBalance: 15,
+      idempotencyKey: 'welfare-checkin:blindbox:42:2026-03-06',
+      grantStatus: 'pending',
+      grantError: '',
+      sub2apiRequestId: '',
+      createdAt: '2026-03-06T10:00:00.000Z',
+      updatedAt: '2026-03-06T10:00:00.000Z'
+    });
+    repository.markCheckinSuccess.mockResolvedValue(undefined);
+    sub2api.addUserBalance.mockResolvedValue({
+      newBalance: 115,
+      requestId: 'req-blindbox'
+    });
+
+    const result = await service.checkBlindbox({
+      sub2apiUserId: 42,
+      linuxdoSubject: 'linuxdo-user',
+      syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
+      username: 'tester',
+      avatarUrl: null
+    });
+
+    expect(repository.createCheckinPending).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkinMode: 'blindbox',
+        blindboxItemId: 3,
+        blindboxTitle: '好运签',
+        rewardBalance: 15
+      })
+    );
+    expect(sub2api.addUserBalance).toHaveBeenCalledWith({
+      userId: 42,
+      amount: 15,
+      notes: '福利盲盒 好运签 2026-03-06',
+      idempotencyKey: 'welfare-checkin:blindbox:42:2026-03-06'
+    });
+    expect(result).toEqual({
+      checkin_date: '2026-03-06',
+      checkin_mode: 'blindbox',
+      blindbox_item_id: 3,
+      blindbox_title: '好运签',
+      reward_balance: 15,
+      new_balance: 115,
+      grant_status: 'success'
+    });
+  });
+
+  it('普通签到失败记录存在时不允许改抽盲盒', async () => {
+    repository.getSettings.mockResolvedValue({
+      checkinEnabled: true,
+      blindboxEnabled: true,
+      dailyRewardBalance: 10,
+      timezone: 'UTC'
+    });
+    repository.getCheckinByDate.mockResolvedValue(createNormalFailedRecord());
+
+    await expect(
+      service.checkBlindbox({
+        sub2apiUserId: 42,
+        linuxdoSubject: 'linuxdo-user',
+        syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
+        username: 'tester',
+        avatarUrl: null
+      })
+    ).rejects.toThrow('今日已选择普通签到，不能再开启盲盒');
+  });
+
+  it('盲盒结果已锁定后失败重试不会重新抽奖', async () => {
+    const failedBlindbox = createBlindboxFailedRecord();
+    const pendingBlindbox: CheckinRecord = {
+      ...failedBlindbox,
+      grantStatus: 'pending',
+      grantError: ''
+    };
+
+    repository.getSettings.mockResolvedValue({
+      checkinEnabled: true,
+      blindboxEnabled: false,
+      dailyRewardBalance: 10,
+      timezone: 'UTC'
+    });
+    repository.getCheckinByDate.mockResolvedValue(failedBlindbox);
+    repository.markCheckinPendingRetry.mockResolvedValue(pendingBlindbox);
+    repository.markCheckinSuccess.mockResolvedValue(undefined);
+    sub2api.addUserBalance.mockResolvedValue({
+      newBalance: 120,
+      requestId: 'req-blindbox-retry'
+    });
+
+    const result = await service.checkBlindbox({
+      sub2apiUserId: 42,
+      linuxdoSubject: 'linuxdo-user',
+      syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
+      username: 'tester',
+      avatarUrl: null
+    });
+
+    expect(repository.listBlindboxItems).not.toHaveBeenCalled();
+    expect(sub2api.addUserBalance).toHaveBeenCalledWith({
+      userId: 42,
+      amount: 15,
+      notes: '福利盲盒 好运签 2026-03-06',
+      idempotencyKey: 'welfare-checkin:blindbox:42:2026-03-06'
+    });
+    expect(result.blindbox_title).toBe('好运签');
+    expect(result.reward_balance).toBe(15);
+  });
+
+  it('盲盒关闭且无历史记录时会拒绝开启', async () => {
+    repository.getSettings.mockResolvedValue({
+      checkinEnabled: true,
+      blindboxEnabled: false,
+      dailyRewardBalance: 10,
+      timezone: 'UTC'
+    });
+    repository.getCheckinByDate.mockResolvedValue(null);
+
+    await expect(
+      service.checkBlindbox({
+        sub2apiUserId: 42,
+        linuxdoSubject: 'linuxdo-user',
+        syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
+        username: 'tester',
+        avatarUrl: null
+      })
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

@@ -40,6 +40,10 @@ vi.mock('../components/AdminCheckinsPanel', () => ({
   AdminCheckinsPanel: () => <div>签到模块</div>
 }));
 
+vi.mock('../components/AdminBlindboxPanel', () => ({
+  AdminBlindboxPanel: () => <div>盲盒模块</div>
+}));
+
 vi.mock('../components/AdminRedeemCodesPanel', () => ({
   AdminRedeemCodesPanel: () => <div>兑换码模块</div>
 }));
@@ -62,6 +66,7 @@ describe('AdminPage dashboard', () => {
         username: 'admin-user',
         avatar_url: null,
         sub2api_user_id: 7,
+        linuxdo_subject: 'admin-subject',
         is_admin: true
       },
       logout: vi.fn()
@@ -70,6 +75,7 @@ describe('AdminPage dashboard', () => {
     mockApi.getAdminOverview.mockResolvedValue({
       settings: {
         checkin_enabled: true,
+        blindbox_enabled: true,
         daily_reward_balance: 10,
         timezone: 'Asia/Shanghai'
       },

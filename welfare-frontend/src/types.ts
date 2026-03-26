@@ -5,6 +5,8 @@ export interface ApiEnvelope<T> {
   data: T;
 }
 
+export type CheckinMode = 'normal' | 'blindbox';
+
 export interface SessionUser {
   sub2api_user_id: number;
   linuxdo_subject: string;
@@ -14,21 +16,46 @@ export interface SessionUser {
   is_admin: boolean;
 }
 
+export interface BlindboxPreviewItem {
+  id: number;
+  title: string;
+  reward_balance: number;
+}
+
+export interface BlindboxPreview {
+  item_count: number;
+  min_reward: number | null;
+  max_reward: number | null;
+  items: BlindboxPreviewItem[];
+}
+
+export interface BlindboxResult {
+  item_id: number | null;
+  title: string | null;
+}
+
 export interface CheckinStatus {
   checkin_enabled: boolean;
+  blindbox_enabled: boolean;
   timezone: string;
   checkin_date: string;
   daily_reward_balance: number;
   checked_in: boolean;
-  can_checkin: boolean;
+  selected_mode: CheckinMode | null;
+  can_checkin_normal: boolean;
+  can_checkin_blindbox: boolean;
   grant_status: 'pending' | 'success' | 'failed' | null;
   checked_at: string | null;
   reward_balance: number | null;
+  blindbox_preview: BlindboxPreview;
+  blindbox_result: BlindboxResult | null;
 }
 
 export interface CheckinHistoryItem {
   id: number;
   checkin_date: string;
+  checkin_mode: CheckinMode;
+  blindbox_title: string | null;
   reward_balance: number;
   grant_status: 'pending' | 'success' | 'failed';
   grant_error: string;
@@ -48,6 +75,7 @@ export interface RedeemHistoryItem {
 
 export interface AdminSettings {
   checkin_enabled: boolean;
+  blindbox_enabled: boolean;
   daily_reward_balance: number;
   timezone: string;
 }
@@ -78,6 +106,9 @@ export interface AdminCheckinItem {
   linuxdoSubject: string;
   syntheticEmail: string;
   checkinDate: string;
+  checkinMode: CheckinMode;
+  blindboxItemId: number | null;
+  blindboxTitle: string | null;
   rewardBalance: number;
   idempotencyKey: string;
   grantStatus: 'pending' | 'success' | 'failed';
@@ -117,6 +148,18 @@ export interface AdminRedeemCodeItem {
   notes: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminBlindboxItem {
+  id: number;
+  title: string;
+  reward_balance: number;
+  weight: number;
+  enabled: boolean;
+  notes: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AdminRedeemClaimItem {

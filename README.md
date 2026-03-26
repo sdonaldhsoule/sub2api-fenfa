@@ -89,6 +89,8 @@ npm run build
 - `LINUXDO_*`：LinuxDo OAuth 应用参数，回调需指向  
   `http(s)://<welfare-backend>/api/auth/linuxdo/callback`
 - `WELFARE_FRONTEND_URL` / `VITE_WELFARE_API_BASE`：如果前后端挂在子路径下，填写完整 base path
+- `VITE_WELFARE_APP_BASE`：如果前端不是部署在站点根路径，而是如 `/welfare/` 这样的子路径，请同步填写
+- 建议在生产环境的反向代理、网关或 WAF 层继续补充 CSP、HTTPS 和限流，仓库内实现主要提供应用层兜底保护
 
 ## 更多说明
 

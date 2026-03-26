@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Icon } from './Icon';
 import { formatAdminDateTime } from '../lib/admin-format';
 import { api, isUnauthorizedError } from '../lib/api';
@@ -11,11 +11,18 @@ interface AdminRedeemCodesPanelProps {
   onCodesChanged?: () => Promise<void>;
 }
 
-const initialForm = {
+const initialCreateForm = {
   code: '',
   title: '',
   reward_balance: '100',
   max_claims: '10',
+  enabled: true,
+  expires_at: '',
+  notes: ''
+};
+
+const initialEditForm = {
+  title: '',
   enabled: true,
   expires_at: '',
   notes: ''
@@ -35,11 +42,38 @@ function toIsoDateTime(value: string): string | null {
   return parsed.toISOString();
 }
 
+function toDateTimeLocalValue(value: string | null): string {
+  if (!value) {
+    return '';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '';
+  }
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const hours = String(parsed.getHours()).padStart(2, '0');
+  const minutes = String(parsed.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 function formatDateTime(value: string | null): string {
   if (!value) {
     return '长期有效';
   }
   return formatAdminDateTime(value);
+}
+
+function buildEditForm(item: AdminRedeemCodeItem) {
+  return {
+    title: item.title,
+    enabled: item.enabled,
+    expires_at: toDateTimeLocalValue(item.expiresAt),
+    notes: item.notes
+  };
 }
 
 export function AdminRedeemCodesPanel({
@@ -52,9 +86,27 @@ export function AdminRedeemCodesPanel({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
-  const [form, setForm] = useState(initialForm);
-  const enabledCount = codes.filter((item) => item.enabled && !item.isExpired).length;
-  const expiringCount = codes.filter((item) => item.isExpired).length;
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [form, setForm] = useState(initialCreateForm);
+  const [editForm, setEditForm] = useState(initialEditForm);
+
+  const enabledCount = useMemo(
+    () => codes.filter((item) => item.enabled && !item.isExpired).length,
+    [codes]
+  );
+  const expiredCount = useMemo(
+    () => codes.filter((item) => item.isExpired).length,
+    [codes]
+  );
+  const editingItem = useMemo(
+    () => codes.find((item) => item.id === editingId) ?? null,
+    [codes, editingId]
+  );
+
+  function replaceCode(updated: AdminRedeemCodeItem) {
+    setCodes((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+  }
 
   async function loadCodes() {
     setLoading(true);
@@ -82,18 +134,22 @@ export function AdminRedeemCodesPanel({
     const rewardBalance = Number(form.reward_balance);
     const maxClaims = Number(form.max_claims);
     if (!form.code.trim() || !form.title.trim()) {
+      onSuccess('');
       onError('兑换码和标题不能为空');
       return;
     }
     if (!Number.isFinite(rewardBalance) || rewardBalance <= 0) {
+      onSuccess('');
       onError('发放额度必须大于 0');
       return;
     }
     if (!Number.isInteger(maxClaims) || maxClaims <= 0) {
+      onSuccess('');
       onError('领取人数必须是正整数');
       return;
     }
     if (form.expires_at && !toIsoDateTime(form.expires_at)) {
+      onSuccess('');
       onError('过期时间格式非法');
       return;
     }
@@ -110,7 +166,7 @@ export function AdminRedeemCodesPanel({
         notes: form.notes.trim() || undefined
       });
       setCodes((current) => [created, ...current]);
-      setForm(initialForm);
+      setForm(initialCreateForm);
       onError('');
       if (onCodesChanged) {
         await onCodesChanged();
@@ -134,9 +190,10 @@ export function AdminRedeemCodesPanel({
       const updated = await api.updateAdminRedeemCode(item.id, {
         enabled: !item.enabled
       });
-      setCodes((current) =>
-        current.map((code) => (code.id === updated.id ? updated : code))
-      );
+      replaceCode(updated);
+      if (editingId === item.id) {
+        setEditForm(buildEditForm(updated));
+      }
       onError('');
       if (onCodesChanged) {
         await onCodesChanged();
@@ -151,6 +208,61 @@ export function AdminRedeemCodesPanel({
       onError(err instanceof Error ? err.message : '兑换码状态更新失败');
     } finally {
       setTogglingId(null);
+    }
+  }
+
+  function startEdit(item: AdminRedeemCodeItem) {
+    setEditingId(item.id);
+    setEditForm(buildEditForm(item));
+    onError('');
+    onSuccess('');
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditForm(initialEditForm);
+  }
+
+  async function saveEdit() {
+    if (!editingItem) {
+      return;
+    }
+    if (!editForm.title.trim()) {
+      onSuccess('');
+      onError('展示标题不能为空');
+      return;
+    }
+    if (editForm.expires_at && !toIsoDateTime(editForm.expires_at)) {
+      onSuccess('');
+      onError('过期时间格式非法');
+      return;
+    }
+
+    setUpdatingId(editingItem.id);
+    try {
+      const updated = await api.updateAdminRedeemCode(editingItem.id, {
+        title: editForm.title.trim(),
+        enabled: editForm.enabled,
+        expires_at: editForm.expires_at ? toIsoDateTime(editForm.expires_at) : null,
+        notes: editForm.notes.trim()
+      });
+      replaceCode(updated);
+      setEditingId(null);
+      setEditForm(initialEditForm);
+      onError('');
+      if (onCodesChanged) {
+        await onCodesChanged();
+      }
+      onSuccess(`已更新兑换码 ${updated.code}`);
+    } catch (err) {
+      if (isUnauthorizedError(err)) {
+        await onUnauthorized();
+        return;
+      }
+      onSuccess('');
+      onError(err instanceof Error ? err.message : '兑换码更新失败');
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -276,11 +388,88 @@ export function AdminRedeemCodesPanel({
         </div>
       </div>
 
+      {editingItem && (
+        <div className="panel">
+          <div className="section-head">
+            <h2 className="section-title">
+              <span className="section-title-content">
+                <Icon name="settings" className="icon icon-accent" />
+                <span>编辑兑换码 {editingItem.code}</span>
+              </span>
+            </h2>
+          </div>
+          <div className="form-grid">
+            <label className="field">
+              <span>展示标题</span>
+              <input
+                type="text"
+                value={editForm.title}
+                maxLength={120}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    title: event.target.value
+                  }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span>过期时间</span>
+              <input
+                type="datetime-local"
+                value={editForm.expires_at}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    expires_at: event.target.value
+                  }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span>备注</span>
+              <input
+                type="text"
+                value={editForm.notes}
+                maxLength={500}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    notes: event.target.value
+                  }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span>启用状态</span>
+              <input
+                type="checkbox"
+                checked={editForm.enabled}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    enabled: event.target.checked
+                  }))
+                }
+              />
+            </label>
+          </div>
+          <div className="form-actions actions">
+            <button className="button primary" onClick={() => void saveEdit()} disabled={updatingId === editingItem.id}>
+              {updatingId === editingItem.id ? '保存中...' : '保存修改'}
+            </button>
+            <button className="button ghost" onClick={cancelEdit} disabled={updatingId === editingItem.id}>
+              取消编辑
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="panel">
         <div className="admin-stats-summary">
           <span className="chip">总兑换码：{codes.length}</span>
           <span className="chip">活跃中：{enabledCount}</span>
-          <span className="chip">已过期：{expiringCount}</span>
+          <span className="chip">已过期：{expiredCount}</span>
         </div>
         {loading ? (
           <p className="loading-text">正在加载兑换码...</p>
@@ -334,9 +523,12 @@ export function AdminRedeemCodesPanel({
                 </div>
 
                 <div className="actions admin-checkin-actions">
+                  <button className="button ghost" onClick={() => startEdit(item)}>
+                    {editingId === item.id ? '编辑中' : '编辑'}
+                  </button>
                   <button
                     className={`button ${item.enabled ? 'danger' : 'primary'}`}
-                    onClick={() => toggleCode(item)}
+                    onClick={() => void toggleCode(item)}
                     disabled={togglingId === item.id}
                   >
                     {togglingId === item.id

@@ -96,6 +96,19 @@ export function AdminCheckinsPanel({
                 />
               </label>
               <label className="field">
+                <span>盲盒签到开关</span>
+                <input
+                  type="checkbox"
+                  checked={settings.blindbox_enabled}
+                  onChange={(event) =>
+                    onSettingsChange({
+                      ...settings,
+                      blindbox_enabled: event.target.checked
+                    })
+                  }
+                />
+              </label>
+              <label className="field">
                 <span>业务时区</span>
                 <input
                   type="text"
@@ -277,7 +290,11 @@ export function AdminCheckinsPanel({
 
                   <div className="stack">
                     <strong>{item.rewardBalance}</strong>
-                    <span className="muted admin-checkin-meta">发放额度</span>
+                    <span className="muted admin-checkin-meta">
+                      {item.checkinMode === 'blindbox'
+                        ? `盲盒签到${item.blindboxTitle ? ` · ${item.blindboxTitle}` : ''}`
+                        : '普通签到'}
+                    </span>
                   </div>
 
                   <div className="stack">

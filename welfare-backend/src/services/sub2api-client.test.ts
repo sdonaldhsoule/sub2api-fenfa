@@ -13,7 +13,7 @@ process.env.SUB2API_BASE_URL ??= 'https://example.com';
 process.env.SUB2API_ADMIN_API_KEY ??= 'test-api-key';
 process.env.SUB2API_TIMEOUT_MS ??= '1000';
 
-const { Sub2apiClient } = await import('./sub2api-client.js');
+const { Sub2apiClient, Sub2apiResponseError } = await import('./sub2api-client.js');
 
 describe('sub2api client', () => {
   const client = new Sub2apiClient();
@@ -118,5 +118,30 @@ describe('sub2api client', () => {
       newBalance: 300,
       requestId: 'req-balance-1'
     });
+  });
+
+  it('sub2api 返回业务失败时会抛出非重试型错误', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: 10001,
+          message: 'quota locked'
+        }),
+        {
+          status: 200
+        }
+      )
+    );
+
+    await expect(
+      client.addUserBalance({
+        userId: 42,
+        amount: 100,
+        notes: '福利兑换码 福利100刀兑换',
+        idempotencyKey: 'welfare-redeem:3:42'
+      })
+    ).rejects.toBeInstanceOf(Sub2apiResponseError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

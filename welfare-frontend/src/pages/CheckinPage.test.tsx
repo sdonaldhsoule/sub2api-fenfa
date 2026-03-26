@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CheckinPage } from './CheckinPage';
@@ -10,6 +10,7 @@ const { mockUseAuth, mockApi } = vi.hoisted(() => ({
     getCheckinHistory: vi.fn(),
     getRedeemHistory: vi.fn(),
     checkin: vi.fn(),
+    checkBlindbox: vi.fn(),
     redeemCode: vi.fn()
   }
 }));
@@ -42,19 +43,34 @@ describe('CheckinPage', () => {
 
     mockApi.getCheckinStatus.mockResolvedValue({
       checkin_enabled: true,
+      blindbox_enabled: true,
       timezone: 'Asia/Shanghai',
       checkin_date: '2026-03-25',
       daily_reward_balance: 10,
       checked_in: false,
-      can_checkin: true,
+      selected_mode: null,
+      can_checkin_normal: true,
+      can_checkin_blindbox: true,
       grant_status: null,
       checked_at: null,
-      reward_balance: null
+      reward_balance: null,
+      blindbox_preview: {
+        item_count: 2,
+        min_reward: 8,
+        max_reward: 15,
+        items: [
+          { id: 1, title: '安稳签', reward_balance: 8 },
+          { id: 2, title: '好运签', reward_balance: 15 }
+        ]
+      },
+      blindbox_result: null
     });
     mockApi.getCheckinHistory.mockResolvedValue([
       {
         id: 1,
         checkin_date: '2026-03-24',
+        checkin_mode: 'normal',
+        blindbox_title: null,
         reward_balance: 10,
         grant_status: 'success',
         grant_error: '',
@@ -83,10 +99,11 @@ describe('CheckinPage', () => {
     );
 
     expect(await screen.findByText(/欢迎回来/i)).toBeInTheDocument();
-    expect(
-      screen.getByText((content) => content.includes('2026') && content.includes('3/24'))
-    ).toBeInTheDocument();
+    expect(screen.getByText('2026-03-24')).toBeInTheDocument();
     expect(screen.getByText('WELCOME100')).toBeInTheDocument();
+    expect(screen.getByText('惊喜签到')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /惊喜签到风险型盲盒/i }));
+    expect(await screen.findByRole('button', { name: '管理员演示开盒' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /后台管理/i })).toBeInTheDocument();
 
     await waitFor(() => {

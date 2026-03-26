@@ -1,7 +1,16 @@
 import { config } from '../config.js';
 import { pool } from '../db.js';
-import { WelfareRepository } from '../repositories/welfare-repository.js';
-import type { CheckinRecord, SessionUser } from '../types/domain.js';
+import {
+  WelfareRepository,
+  type CreateBlindboxItemInput,
+  type UpdateBlindboxItemInput
+} from '../repositories/welfare-repository.js';
+import type {
+  BlindboxItem,
+  CheckinMode,
+  CheckinRecord,
+  SessionUser
+} from '../types/domain.js';
 import { getBusinessDate, shiftDateString } from '../utils/date.js';
 import { Sub2apiClient, sub2apiClient } from './sub2api-client.js';
 
@@ -11,8 +20,12 @@ export class NotFoundError extends Error {}
 
 const PENDING_RECOVERY_AFTER_MS = Math.max(30_000, config.SUB2API_TIMEOUT_MS * 2);
 
-function buildIdempotencyKey(sub2apiUserId: number, checkinDate: string): string {
-  return `welfare-checkin:${sub2apiUserId}:${checkinDate}`;
+function buildIdempotencyKey(
+  sub2apiUserId: number,
+  checkinDate: string,
+  checkinMode: CheckinMode
+): string {
+  return `welfare-checkin:${checkinMode}:${sub2apiUserId}:${checkinDate}`;
 }
 
 const repository = new WelfareRepository(pool);
@@ -20,6 +33,9 @@ const repository = new WelfareRepository(pool);
 type WelfareRepositoryLike = Pick<
   WelfareRepository,
   | 'getSettings'
+  | 'listBlindboxItems'
+  | 'createBlindboxItem'
+  | 'updateBlindboxItem'
   | 'getCheckinByDate'
   | 'getCheckinById'
   | 'createCheckinPending'
@@ -36,8 +52,12 @@ type WelfareRepositoryLike = Pick<
 
 type Sub2apiClientLike = Pick<Sub2apiClient, 'addUserBalance'>;
 
-function buildGrantNotes(checkinDate: string): string {
-  return `福利签到 ${checkinDate}`;
+function buildGrantNotes(record: Pick<CheckinRecord, 'checkinMode' | 'blindboxTitle' | 'checkinDate'>): string {
+  if (record.checkinMode === 'blindbox') {
+    return `福利盲盒 ${record.blindboxTitle || '惊喜签'} ${record.checkinDate}`;
+  }
+
+  return `福利签到 ${record.checkinDate}`;
 }
 
 function isPendingRecoverable(record: CheckinRecord): boolean {
@@ -53,9 +73,16 @@ function isPendingRecoverable(record: CheckinRecord): boolean {
   return Date.now() - updatedAtMs >= PENDING_RECOVERY_AFTER_MS;
 }
 
-function canAttemptCheckin(record: CheckinRecord | null): boolean {
+function canAttemptCheckin(
+  record: CheckinRecord | null,
+  requestedMode: CheckinMode
+): boolean {
   if (!record) {
     return true;
+  }
+
+  if (record.checkinMode !== requestedMode) {
+    return false;
   }
 
   if (record.grantStatus === 'success') {
@@ -69,27 +96,85 @@ function canAttemptCheckin(record: CheckinRecord | null): boolean {
   return isPendingRecoverable(record);
 }
 
+function buildBlindboxPreview(items: BlindboxItem[]) {
+  const sortedByReward = [...items].sort((left, right) => left.rewardBalance - right.rewardBalance);
+  const minReward = sortedByReward[0]?.rewardBalance ?? null;
+  const maxReward = sortedByReward[sortedByReward.length - 1]?.rewardBalance ?? null;
+
+  return {
+    item_count: items.length,
+    min_reward: minReward,
+    max_reward: maxReward,
+    items: items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      reward_balance: item.rewardBalance
+    }))
+  };
+}
+
+function buildModeConflictMessage(existingMode: CheckinMode): string {
+  if (existingMode === 'normal') {
+    return '今日已选择普通签到，不能再开启盲盒';
+  }
+
+  return '今日已选择盲盒签到，请继续处理本次盲盒';
+}
+
+function buildSuccessConflictMessage(mode: CheckinMode): string {
+  return mode === 'blindbox' ? '今日盲盒已开启，请明天再来' : '今日已签到，请明天再来';
+}
+
+function buildProcessingMessage(mode: CheckinMode): string {
+  return mode === 'blindbox' ? '盲盒处理中，请稍后刷新' : '签到处理中，请稍后刷新';
+}
+
 export class CheckinService {
   constructor(
     private readonly repository: WelfareRepositoryLike,
-    private readonly sub2api: Sub2apiClientLike
+    private readonly sub2api: Sub2apiClientLike,
+    private readonly random: () => number = Math.random
   ) {}
 
   async getStatus(user: SessionUser) {
     const settings = await this.repository.getSettings();
     const checkinDate = getBusinessDate(settings.timezone);
-    const today = await this.repository.getCheckinByDate(user.sub2apiUserId, checkinDate);
+    const [today, blindboxItems] = await Promise.all([
+      this.repository.getCheckinByDate(user.sub2apiUserId, checkinDate),
+      this.repository.listBlindboxItems(true)
+    ]);
+
+    const canCheckinNormal = today?.checkinMode === 'normal'
+      ? canAttemptCheckin(today, 'normal')
+      : settings.checkinEnabled && canAttemptCheckin(today, 'normal');
+    const canCheckinBlindbox = today?.checkinMode === 'blindbox'
+      ? canAttemptCheckin(today, 'blindbox')
+      : settings.checkinEnabled &&
+        settings.blindboxEnabled &&
+        blindboxItems.length > 0 &&
+        canAttemptCheckin(today, 'blindbox');
 
     return {
       checkin_enabled: settings.checkinEnabled,
+      blindbox_enabled: settings.blindboxEnabled,
       timezone: settings.timezone,
       checkin_date: checkinDate,
       daily_reward_balance: settings.dailyRewardBalance,
       checked_in: today?.grantStatus === 'success',
-      can_checkin: settings.checkinEnabled && canAttemptCheckin(today),
+      selected_mode: today?.checkinMode ?? null,
       grant_status: today?.grantStatus ?? null,
       checked_at: today?.createdAt ?? null,
-      reward_balance: today?.rewardBalance ?? null
+      reward_balance: today?.rewardBalance ?? null,
+      can_checkin_normal: canCheckinNormal,
+      can_checkin_blindbox: canCheckinBlindbox,
+      blindbox_preview: buildBlindboxPreview(blindboxItems),
+      blindbox_result:
+        today?.checkinMode === 'blindbox'
+          ? {
+              item_id: today.blindboxItemId,
+              title: today.blindboxTitle || null
+            }
+          : null
     };
   }
 
@@ -98,6 +183,8 @@ export class CheckinService {
     return records.map((item) => ({
       id: item.id,
       checkin_date: item.checkinDate,
+      checkin_mode: item.checkinMode,
+      blindbox_title: item.checkinMode === 'blindbox' ? item.blindboxTitle || null : null,
       reward_balance: item.rewardBalance,
       grant_status: item.grantStatus,
       grant_error: item.grantError,
@@ -106,39 +193,79 @@ export class CheckinService {
   }
 
   async checkin(user: SessionUser) {
+    return this.performCheckin(user, 'normal');
+  }
+
+  async checkBlindbox(user: SessionUser) {
+    return this.performCheckin(user, 'blindbox');
+  }
+
+  private async performCheckin(user: SessionUser, requestedMode: CheckinMode) {
     const settings = await this.repository.getSettings();
+    const checkinDate = getBusinessDate(settings.timezone);
+    const existing = await this.repository.getCheckinByDate(user.sub2apiUserId, checkinDate);
+
+    if (existing) {
+      const pending = await this.claimRetryableCheckin(
+        existing,
+        requestedMode,
+        buildSuccessConflictMessage(requestedMode)
+      );
+      const grantResult = await this.grantCheckin(pending);
+      return this.toCheckinResponse(pending, grantResult.newBalance);
+    }
+
     if (!settings.checkinEnabled) {
       throw new ForbiddenError('签到功能已关闭');
     }
 
-    const checkinDate = getBusinessDate(settings.timezone);
-    const idempotencyKey = buildIdempotencyKey(user.sub2apiUserId, checkinDate);
-    const reward = settings.dailyRewardBalance;
+    let reward = settings.dailyRewardBalance;
+    let blindboxItemId: number | null = null;
+    let blindboxTitle = '';
+
+    if (requestedMode === 'blindbox') {
+      if (!settings.blindboxEnabled) {
+        throw new ForbiddenError('盲盒签到暂未开放');
+      }
+
+      const blindboxItems = await this.repository.listBlindboxItems(true);
+      const selectedItem = this.pickBlindboxItem(blindboxItems);
+      if (!selectedItem) {
+        throw new ForbiddenError('当前盲盒奖池不可用，请先选择普通签到');
+      }
+
+      reward = selectedItem.rewardBalance;
+      blindboxItemId = selectedItem.id;
+      blindboxTitle = selectedItem.title;
+    }
 
     let pending = await this.repository.createCheckinPending({
       sub2apiUserId: user.sub2apiUserId,
       linuxdoSubject: user.linuxdoSubject,
       syntheticEmail: user.syntheticEmail,
       checkinDate,
+      checkinMode: requestedMode,
+      blindboxItemId,
+      blindboxTitle,
       rewardBalance: reward,
-      idempotencyKey
+      idempotencyKey: buildIdempotencyKey(user.sub2apiUserId, checkinDate, requestedMode)
     });
 
     if (!pending) {
-      const existing = await this.repository.getCheckinByDate(user.sub2apiUserId, checkinDate);
-      if (!existing) {
+      const latest = await this.repository.getCheckinByDate(user.sub2apiUserId, checkinDate);
+      if (!latest) {
         throw new Error('签到记录读取失败，请稍后重试');
       }
-      pending = await this.claimRetryableCheckin(existing, '今日已签到，请明天再来');
+
+      pending = await this.claimRetryableCheckin(
+        latest,
+        requestedMode,
+        buildSuccessConflictMessage(requestedMode)
+      );
     }
 
     const grantResult = await this.grantCheckin(pending);
-    return {
-      checkin_date: checkinDate,
-      reward_balance: pending.rewardBalance,
-      new_balance: grantResult.newBalance,
-      grant_status: 'success'
-    };
+    return this.toCheckinResponse(pending, grantResult.newBalance);
   }
 
   async retryFailedCheckin(id: number) {
@@ -149,7 +276,8 @@ export class CheckinService {
 
     const pending = await this.claimRetryableCheckin(
       existing,
-      '该签到记录已发放成功'
+      existing.checkinMode,
+      existing.checkinMode === 'blindbox' ? '该盲盒签到记录已发放成功' : '该签到记录已发放成功'
     );
 
     const grantResult = await this.grantCheckin(pending);
@@ -171,7 +299,7 @@ export class CheckinService {
       grantResult = await this.sub2api.addUserBalance({
         userId: record.sub2apiUserId,
         amount: record.rewardBalance,
-        notes: buildGrantNotes(record.checkinDate),
+        notes: buildGrantNotes(record),
         idempotencyKey: record.idempotencyKey
       });
     } catch (error) {
@@ -197,10 +325,27 @@ export class CheckinService {
 
   async updateAdminSettings(input: {
     checkinEnabled?: boolean;
+    blindboxEnabled?: boolean;
     dailyRewardBalance?: number;
     timezone?: string;
   }) {
     return this.repository.updateSettings(input);
+  }
+
+  async listAdminBlindboxItems() {
+    return this.repository.listBlindboxItems(false);
+  }
+
+  async createAdminBlindboxItem(input: CreateBlindboxItemInput) {
+    return this.repository.createBlindboxItem(input);
+  }
+
+  async updateAdminBlindboxItem(id: number, input: UpdateBlindboxItemInput) {
+    const updated = await this.repository.updateBlindboxItem(id, input);
+    if (!updated) {
+      throw new NotFoundError('盲盒奖项不存在');
+    }
+    return updated;
   }
 
   async getAdminDailyStats(days: number) {
@@ -233,10 +378,37 @@ export class CheckinService {
     return this.repository.queryAdminCheckins(params);
   }
 
+  private pickBlindboxItem(items: BlindboxItem[]): BlindboxItem | null {
+    const normalized = items.filter((item) => item.enabled && item.weight > 0);
+    if (normalized.length === 0) {
+      return null;
+    }
+
+    const totalWeight = normalized.reduce((sum, item) => sum + item.weight, 0);
+    if (totalWeight <= 0) {
+      return null;
+    }
+
+    let cursor = this.random() * totalWeight;
+    for (const item of normalized) {
+      cursor -= item.weight;
+      if (cursor < 0) {
+        return item;
+      }
+    }
+
+    return normalized[normalized.length - 1] ?? null;
+  }
+
   private async claimRetryableCheckin(
     existing: CheckinRecord,
+    requestedMode: CheckinMode,
     successConflictMessage: string
   ): Promise<CheckinRecord> {
+    if (existing.checkinMode !== requestedMode) {
+      throw new ConflictError(buildModeConflictMessage(existing.checkinMode));
+    }
+
     if (existing.grantStatus === 'success') {
       throw new ConflictError(successConflictMessage);
     }
@@ -244,13 +416,13 @@ export class CheckinService {
     if (existing.grantStatus === 'failed') {
       const pending = await this.repository.markCheckinPendingRetry(existing.id);
       if (!pending) {
-        throw new ConflictError('签到处理中，请稍后刷新');
+        throw new ConflictError(buildProcessingMessage(requestedMode));
       }
       return pending;
     }
 
     if (!isPendingRecoverable(existing)) {
-      throw new ConflictError('签到处理中，请稍后刷新');
+      throw new ConflictError(buildProcessingMessage(requestedMode));
     }
 
     const pending = await this.repository.claimStalePending(
@@ -258,10 +430,22 @@ export class CheckinService {
       PENDING_RECOVERY_AFTER_MS
     );
     if (!pending) {
-      throw new ConflictError('签到处理中，请稍后刷新');
+      throw new ConflictError(buildProcessingMessage(requestedMode));
     }
 
     return pending;
+  }
+
+  private toCheckinResponse(record: CheckinRecord, newBalance: number | null) {
+    return {
+      checkin_date: record.checkinDate,
+      checkin_mode: record.checkinMode,
+      blindbox_item_id: record.blindboxItemId,
+      blindbox_title: record.checkinMode === 'blindbox' ? record.blindboxTitle || null : null,
+      reward_balance: record.rewardBalance,
+      new_balance: newBalance,
+      grant_status: 'success' as const
+    };
   }
 }
 

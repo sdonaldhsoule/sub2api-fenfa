@@ -2,6 +2,18 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+process.env.DATABASE_URL ??= 'postgres://localhost:5432/test';
+process.env.WELFARE_FRONTEND_URL ??= 'http://localhost:5173';
+process.env.WELFARE_JWT_SECRET ??= 'test-secret-123456';
+process.env.LINUXDO_CLIENT_ID ??= 'test-client-id';
+process.env.LINUXDO_CLIENT_SECRET ??= 'test-client-secret';
+process.env.LINUXDO_AUTHORIZE_URL ??= 'https://example.com/oauth/authorize';
+process.env.LINUXDO_TOKEN_URL ??= 'https://example.com/oauth/token';
+process.env.LINUXDO_USERINFO_URL ??= 'https://example.com/oauth/userinfo';
+process.env.LINUXDO_REDIRECT_URI ??= 'http://localhost:8787/api/auth/linuxdo/callback';
+process.env.SUB2API_BASE_URL ??= 'https://example.com';
+process.env.SUB2API_ADMIN_API_KEY ??= 'test-api-key';
+
 const {
   mockRedeemService,
   ConflictError,
@@ -68,12 +80,26 @@ describe('redeemRouter', () => {
       .send({ code: 'NOPE' });
 
     expect(response.status).toBe(404);
+    expect(response.headers['cache-control']).toBe('no-store');
     expect(response.body.message).toBe('REDEEM_CODE_NOT_FOUND');
   });
 
   it('POST /redeem 在上游发放失败时返回 502', async () => {
     const { HttpError } = await import('../utils/http.js');
     mockRedeemService.redeem.mockRejectedValue(new HttpError(502, 'bad gateway'));
+
+    const app = await createTestApp();
+    const response = await request(app)
+      .post('/api/redeem-codes/redeem')
+      .send({ code: 'WELCOME100' });
+
+    expect(response.status).toBe(502);
+    expect(response.body.message).toBe('SUB2API_GRANT_FAILED');
+  });
+
+  it('POST /redeem 在上游返回业务失败时同样返回 502', async () => {
+    const { Sub2apiResponseError } = await import('../services/sub2api-client.js');
+    mockRedeemService.redeem.mockRejectedValue(new Sub2apiResponseError('quota locked'));
 
     const app = await createTestApp();
     const response = await request(app)

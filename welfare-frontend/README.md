@@ -11,6 +11,9 @@
 - `VITE_WELFARE_API_BASE`：福利后端地址，如 `http://localhost:8787`
   - 支持绝对地址：`https://example.com/welfare-backend`
   - 也支持相对路径：`/welfare-backend`
+- `VITE_WELFARE_APP_BASE`：前端自身的部署子路径，默认 `/`
+  - 部署在根路径时保持 `/`
+  - 如果前端挂在子路径，例如 `https://example.com/welfare/`，则填写 `/welfare/`
 
 ## 运行方式
 
@@ -53,6 +56,13 @@ npm run preview
 - `/admin` 路由在前端会先校验 `is_admin`，避免非管理员先打后台接口再显示无权限
 - 如果会话刷新遇到 `500`、网络异常或 CORS 问题，前端会显示明确错误态，而不是误判成“未登录”
 - `VITE_WELFARE_API_BASE` 带子路径时，登录入口 URL 也会保留该 base path
+- `VITE_WELFARE_APP_BASE` 可让前端路由、OAuth 回调页和构建产物在子路径下保持一致
+
+## 安全与部署建议
+
+- 当前前端使用 localStorage 保存 Bearer token，部署时建议配合严格的 CSP，尽量不要引入不受控的第三方脚本
+- 如果前端挂在子路径下，请同时配置好 `VITE_WELFARE_APP_BASE`，并确认静态资源与路由都由同一子路径承载
+- 若通过 Nginx、CDN 或其他网关对外暴露，建议在边缘侧继续补充限流与 HTTPS 强制跳转
 
 ## 当前页面行为
 

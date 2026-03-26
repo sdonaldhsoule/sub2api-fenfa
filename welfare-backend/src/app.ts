@@ -12,6 +12,14 @@ const CORS_ERROR_PREFIX = 'CORS_ORIGIN_NOT_ALLOWED:';
 export function createApp() {
   const app = express();
 
+  app.disable('x-powered-by');
+  app.use((_req, res, next) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('X-Frame-Options', 'DENY');
+    res.set('Referrer-Policy', 'same-origin');
+    res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
   app.use(express.json({ limit: '1mb' }));
   app.use(
     cors({

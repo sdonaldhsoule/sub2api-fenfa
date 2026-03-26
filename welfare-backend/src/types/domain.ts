@@ -12,10 +12,25 @@ export interface VerifiedSession {
   expiresAtMs: number;
 }
 
+export type CheckinMode = 'normal' | 'blindbox';
+
 export interface WelfareSettings {
   checkinEnabled: boolean;
+  blindboxEnabled: boolean;
   dailyRewardBalance: number;
   timezone: string;
+}
+
+export interface BlindboxItem {
+  id: number;
+  title: string;
+  rewardBalance: number;
+  weight: number;
+  enabled: boolean;
+  notes: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CheckinRecord {
@@ -24,6 +39,9 @@ export interface CheckinRecord {
   linuxdoSubject: string;
   syntheticEmail: string;
   checkinDate: string;
+  checkinMode: CheckinMode;
+  blindboxItemId: number | null;
+  blindboxTitle: string;
   rewardBalance: number;
   idempotencyKey: string;
   grantStatus: 'pending' | 'success' | 'failed';

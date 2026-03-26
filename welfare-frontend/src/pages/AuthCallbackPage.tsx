@@ -6,6 +6,7 @@ import {
   clearAuthCallbackParams,
   exchangeSessionHandoffOnce
 } from '../lib/auth-callback';
+import { resolveAppPath } from '../lib/app-base';
 import { storeSessionToken } from '../lib/session-token';
 
 async function wait(ms: number): Promise<void> {
@@ -87,7 +88,7 @@ export function AuthCallbackPage() {
 
           clearAuthCallbackParams();
           setMessage('登录成功，正在跳转...');
-          window.location.replace(result.redirect || redirect);
+          window.location.replace(resolveAppPath(result.redirect || redirect));
         } catch (exchangeError) {
           if (cancelled) {
             return;

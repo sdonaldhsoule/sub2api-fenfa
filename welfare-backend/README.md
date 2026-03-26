@@ -17,6 +17,10 @@
   - `WELFARE_CORS_ORIGINS`：允许跨域来源，多个值用逗号分隔；留空时默认仅允许 `WELFARE_FRONTEND_URL` 对应的 origin
   - `WELFARE_JWT_SECRET`：会话签名密钥，至少 16 位
   - `WELFARE_JWT_EXPIRES_IN`：Bearer JWT 过期时间，如 `30m`、`12h`、`24h`
+  - `WELFARE_RATE_LIMIT_AUTH_WINDOW` / `WELFARE_RATE_LIMIT_AUTH_LIMIT`：登录相关接口限流窗口与次数
+  - `WELFARE_RATE_LIMIT_CHECKIN_WINDOW` / `WELFARE_RATE_LIMIT_CHECKIN_LIMIT`：签到接口限流窗口与次数
+  - `WELFARE_RATE_LIMIT_REDEEM_WINDOW` / `WELFARE_RATE_LIMIT_REDEEM_LIMIT`：兑换接口限流窗口与次数
+  - `WELFARE_RATE_LIMIT_ADMIN_MUTATION_WINDOW` / `WELFARE_RATE_LIMIT_ADMIN_MUTATION_LIMIT`：后台写操作限流窗口与次数
 
 - 数据库
   - `DATABASE_URL`：PostgreSQL 连接串
@@ -71,6 +75,7 @@ npm test
 - 后端鉴权统一读取 `Authorization: Bearer <token>`
 - JWT 过期时间由 `WELFARE_JWT_EXPIRES_IN` 控制，默认回退值已收紧为 `12h`
 - `POST /api/auth/logout` 会在服务端撤销当前 Bearer token；后台还会按 `WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL` 定期清理已过期的撤销记录
+- 登录、签到、兑换和后台写操作都已加入基础限流；如果对外暴露到公网，仍建议在 Nginx / CDN / WAF 层再加一层限流
 - 布尔环境变量会严格校验，拼错值会在启动时报错，而不是静默当成 `false`
 - 默认业务时区与启动白名单会在启动阶段校验，避免运行时才因非法配置报错
 - 签到记录新增 `updated_at`，用于识别超时 `pending` 记录
@@ -78,6 +83,13 @@ npm test
 - 失败签到重试会保留原始 `reward_balance`，不会因为后台后来改了奖励配置而漂移
 - 管理后台“最近 N 天”统计按业务时区推导起始日期，不依赖数据库 `CURRENT_DATE`
 - `WELFARE_FRONTEND_URL` 支持子路径部署，OAuth 回调会保留前端 base path
+
+## 安全说明
+
+- API 默认会返回基础安全响应头：`X-Frame-Options: DENY`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: same-origin`
+- 当前仓库内的限流实现是**进程内存级**的，适合单实例或作为兜底保护；多实例生产环境建议把主限流放到反向代理、网关或 WAF
+- 如果服务部署在反向代理后，请正确配置真实客户端 IP 透传，否则基于 IP 的登录限流可能偏保守
+- 前端当前使用 localStorage 保存 Bearer token，生产部署时建议额外启用 CSP、限制第三方脚本来源，并避免把不可信 HTML 注入页面
 
 ## 数据库行为
 

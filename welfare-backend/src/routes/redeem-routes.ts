@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { config } from '../config.js';
 import { requireAuth } from '../middleware/auth-middleware.js';
+import {
+  createRateLimitMiddleware,
+  keyBySessionUser
+} from '../middleware/rate-limit-middleware.js';
 import {
   redeemService,
   ConflictError,
@@ -9,6 +14,7 @@ import {
 } from '../services/redeem-service.js';
 import { fail, ok } from '../utils/response.js';
 import { HttpError } from '../utils/http.js';
+import { Sub2apiResponseError } from '../services/sub2api-client.js';
 import { asyncHandler } from '../utils/async-handler.js';
 
 const redeemBodySchema = z.object({
@@ -19,8 +25,20 @@ const historyQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional()
 });
 
+const redeemMutationRateLimit = createRateLimitMiddleware({
+  bucket: 'redeem',
+  limit: config.WELFARE_RATE_LIMIT_REDEEM_LIMIT,
+  windowMs: config.WELFARE_RATE_LIMIT_REDEEM_WINDOW_MS,
+  keyGenerator: keyBySessionUser,
+  message: '兑换操作过于频繁，请稍后再试'
+});
+
 export const redeemRouter = Router();
 
+redeemRouter.use((_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 redeemRouter.use(requireAuth);
 
 redeemRouter.get('/history', asyncHandler(async (req, res) => {
@@ -37,7 +55,7 @@ redeemRouter.get('/history', asyncHandler(async (req, res) => {
   ok(res, data);
 }));
 
-redeemRouter.post('/redeem', asyncHandler(async (req, res) => {
+redeemRouter.post('/redeem', redeemMutationRateLimit, asyncHandler(async (req, res) => {
   const parsed = redeemBodySchema.safeParse(req.body);
   if (!parsed.success) {
     fail(res, 400, 'BAD_REQUEST', parsed.error.issues[0]?.message ?? '参数非法');
@@ -63,7 +81,7 @@ redeemRouter.post('/redeem', asyncHandler(async (req, res) => {
       return;
     }
 
-    if (error instanceof HttpError) {
+    if (error instanceof HttpError || error instanceof Sub2apiResponseError) {
       console.error('[redeem] sub2api 发放失败', error);
       fail(res, 502, 'SUB2API_GRANT_FAILED', '额度发放失败，请稍后重试');
       return;

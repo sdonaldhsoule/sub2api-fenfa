@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
+import { AdminBlindboxPanel } from '../components/AdminBlindboxPanel';
 import { AdminCheckinsPanel } from '../components/AdminCheckinsPanel';
 import { AdminDashboardOverview } from '../components/AdminDashboardOverview';
 import { AdminRedeemCodesPanel } from '../components/AdminRedeemCodesPanel';
@@ -500,36 +501,68 @@ export function AdminPage() {
           )}
 
           {activeSection === 'checkins' && (
-            <AdminCheckinsPanel
-              settings={settings}
-              dailyRewardInput={dailyRewardInput}
-              onDailyRewardInputChange={setDailyRewardInput}
-              onSettingsChange={setSettings}
-              stats={stats}
-              saving={saving}
-              onSaveSettings={saveSettings}
-              checkinList={checkinList}
-              checkinsLoading={checkinsLoading}
-              checkinFilters={checkinFilters}
-              checkinFilterForm={checkinFilterForm}
-              onCheckinFilterFormChange={(updater) => setCheckinFilterForm((current) => updater(current))}
-              onApplyFilters={applyCheckinFilters}
-              onResetFilters={() => {
-                setCheckinFilterForm(defaultCheckinFilterForm);
-                setCheckinFilters(defaultCheckinFilters);
-              }}
-              retryingId={retryingId}
-              onRetryCheckin={retryCheckin}
-              batchRetrying={batchRetrying}
-              batchRetryProgress={batchRetryProgress}
-              onRetryAllFailed={retryAllFailed}
-              onChangePage={(nextPage) => {
-                if (!checkinList || nextPage < 1 || nextPage > checkinList.pages || nextPage === checkinList.page) {
-                  return;
-                }
-                setCheckinFilters((current) => ({ ...current, page: nextPage }));
-              }}
-            />
+            <>
+              <AdminCheckinsPanel
+                settings={settings}
+                dailyRewardInput={dailyRewardInput}
+                onDailyRewardInputChange={setDailyRewardInput}
+                onSettingsChange={setSettings}
+                stats={stats}
+                saving={saving}
+                onSaveSettings={saveSettings}
+                checkinList={checkinList}
+                checkinsLoading={checkinsLoading}
+                checkinFilters={checkinFilters}
+                checkinFilterForm={checkinFilterForm}
+                onCheckinFilterFormChange={(updater) => setCheckinFilterForm((current) => updater(current))}
+                onApplyFilters={applyCheckinFilters}
+                onResetFilters={() => {
+                  setCheckinFilterForm(defaultCheckinFilterForm);
+                  setCheckinFilters(defaultCheckinFilters);
+                }}
+                retryingId={retryingId}
+                onRetryCheckin={retryCheckin}
+                batchRetrying={batchRetrying}
+                batchRetryProgress={batchRetryProgress}
+                onRetryAllFailed={retryAllFailed}
+                onChangePage={(nextPage) => {
+                  if (!checkinList || nextPage < 1 || nextPage > checkinList.pages || nextPage === checkinList.page) {
+                    return;
+                  }
+                  setCheckinFilters((current) => ({ ...current, page: nextPage }));
+                }}
+              />
+              <AdminBlindboxPanel
+                blindboxEnabled={settings?.blindbox_enabled ?? false}
+                onUnauthorized={redirectToLogin}
+                onError={setError}
+                onSuccess={setMessage}
+                onToggleBlindboxEnabled={async (next) => {
+                  if (!settings) {
+                    return;
+                  }
+                  setSaving(true);
+                  setError('');
+                  setMessage('');
+                  try {
+                    const updated = await api.updateAdminSettings({
+                      ...settings,
+                      blindbox_enabled: next
+                    });
+                    setSettings(updated);
+                    setMessage(next ? '已开启盲盒签到' : '已关闭盲盒签到');
+                  } catch (err) {
+                    if (isUnauthorizedError(err)) {
+                      await redirectToLogin();
+                      return;
+                    }
+                    setError(err instanceof Error ? err.message : '盲盒签到开关更新失败');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              />
+            </>
           )}
 
           {activeSection === 'redeemCodes' && (
@@ -553,6 +586,7 @@ export function AdminPage() {
           {activeSection === 'whitelist' && (
             <AdminWhitelistPanel
               userName={user.username}
+              currentSubject={user.linuxdo_subject}
               whitelist={whitelist}
               newSubject={newSubject}
               newNotes={newNotes}

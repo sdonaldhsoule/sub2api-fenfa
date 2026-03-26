@@ -43,11 +43,13 @@ describe('config', () => {
   it('accepts valid duration strings', async () => {
     process.env.WELFARE_JWT_EXPIRES_IN = '1.5h';
     process.env.WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL = '30m';
+    process.env.WELFARE_RATE_LIMIT_AUTH_WINDOW = '15m';
 
     const { config } = await import('./config.js');
 
     expect(config.WELFARE_JWT_EXPIRES_IN).toBe('1.5h');
     expect(config.WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL_MS).toBe(1_800_000);
+    expect(config.WELFARE_RATE_LIMIT_AUTH_WINDOW_MS).toBe(900_000);
   });
 
   it('rejects invalid default timezone values', async () => {

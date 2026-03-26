@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { requireAuth } from '../middleware/auth-middleware.js';
+import { createRateLimitMiddleware, keyByIp } from '../middleware/rate-limit-middleware.js';
 import { linuxDoOAuthService } from '../services/linuxdo-oauth-service.js';
 import { authArtifactService } from '../services/auth-artifact-service.js';
 import { sessionService } from '../services/session-service.js';
@@ -48,9 +49,17 @@ const sessionHandoffExchangeSchema = z.object({
   handoff: z.string().min(1, 'handoff 不能为空')
 });
 
+const authRateLimit = createRateLimitMiddleware({
+  bucket: 'auth',
+  limit: config.WELFARE_RATE_LIMIT_AUTH_LIMIT,
+  windowMs: config.WELFARE_RATE_LIMIT_AUTH_WINDOW_MS,
+  keyGenerator: keyByIp,
+  message: '登录相关请求过于频繁，请稍后再试'
+});
+
 export const authRouter = Router();
 
-authRouter.get('/linuxdo/start', asyncHandler(async (req, res) => {
+authRouter.get('/linuxdo/start', authRateLimit, asyncHandler(async (req, res) => {
   res.set('Cache-Control', 'no-store');
 
   const issuedAt = Date.now();
@@ -195,7 +204,7 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
   }
 }));
 
-authRouter.post('/session-handoff/exchange', asyncHandler(async (req, res) => {
+authRouter.post('/session-handoff/exchange', authRateLimit, asyncHandler(async (req, res) => {
   res.set('Cache-Control', 'no-store');
 
   const parsed = sessionHandoffExchangeSchema.safeParse(req.body);

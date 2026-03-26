@@ -1,4 +1,5 @@
 import type {
+  AdminBlindboxItem,
   AdminCheckinItem,
   AdminCheckinList,
   AdminCheckinQuery,
@@ -128,10 +129,23 @@ export const api = {
   checkin: () =>
     request<{
       checkin_date: string;
+      checkin_mode: 'normal';
+      blindbox_item_id: null;
+      blindbox_title: null;
       reward_balance: number;
       new_balance: number | null;
       grant_status: 'success';
     }>('/api/checkin', { method: 'POST' }),
+  checkBlindbox: () =>
+    request<{
+      checkin_date: string;
+      checkin_mode: 'blindbox';
+      blindbox_item_id: number | null;
+      blindbox_title: string | null;
+      reward_balance: number;
+      new_balance: number | null;
+      grant_status: 'success';
+    }>('/api/checkin/blindbox', { method: 'POST' }),
   getCheckinHistory: () => request<CheckinHistoryItem[]>('/api/checkin/history'),
   redeemCode: (payload: { code: string }) =>
     request<{
@@ -183,6 +197,34 @@ export const api = {
   removeWhitelist: (id: number) =>
     request<{ deleted: boolean }>(`/api/admin/whitelist/${id}`, {
       method: 'DELETE'
+    }),
+  listAdminBlindboxItems: () => request<AdminBlindboxItem[]>('/api/admin/blindbox/items'),
+  createAdminBlindboxItem: (payload: {
+    title: string;
+    reward_balance: number;
+    weight: number;
+    enabled?: boolean;
+    notes?: string;
+    sort_order?: number;
+  }) =>
+    request<AdminBlindboxItem>('/api/admin/blindbox/items', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+  updateAdminBlindboxItem: (
+    id: number,
+    payload: {
+      title?: string;
+      reward_balance?: number;
+      weight?: number;
+      enabled?: boolean;
+      notes?: string;
+      sort_order?: number;
+    }
+  ) =>
+    request<AdminBlindboxItem>(`/api/admin/blindbox/items/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
     }),
   listAdminRedeemCodes: () => request<AdminRedeemCodeItem[]>('/api/admin/redeem-codes'),
   createAdminRedeemCode: (payload: {

@@ -1,3 +1,15 @@
+const zhDateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+});
+
+const zhTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false
+});
+
 const zhDateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric',
   month: '2-digit',
@@ -32,6 +44,32 @@ function parseDateLike(value: string): Date | null {
   }
 
   return parsed;
+}
+
+export function formatAdminDate(value: string | null | undefined): string {
+  if (!value) {
+    return '未设置';
+  }
+
+  const parsed = parseDateLike(value);
+  if (!parsed) {
+    return value;
+  }
+
+  return zhDateFormatter.format(parsed).replace(/\//g, '-');
+}
+
+export function formatAdminTime(value: string | null | undefined): string {
+  if (!value) {
+    return '未设置';
+  }
+
+  const parsed = parseDateLike(value);
+  if (!parsed) {
+    return value;
+  }
+
+  return zhTimeFormatter.format(parsed);
 }
 
 export function formatAdminDateTime(value: string | null | undefined): string {

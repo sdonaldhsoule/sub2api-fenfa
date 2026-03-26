@@ -4,6 +4,7 @@ import type { WhitelistItem } from '../types';
 
 interface AdminWhitelistPanelProps {
   userName: string;
+  currentSubject: string;
   whitelist: WhitelistItem[];
   newSubject: string;
   newNotes: string;
@@ -15,6 +16,7 @@ interface AdminWhitelistPanelProps {
 
 export function AdminWhitelistPanel({
   userName,
+  currentSubject,
   whitelist,
   newSubject,
   newNotes,
@@ -84,20 +86,36 @@ export function AdminWhitelistPanel({
         </h2>
         <div className="list" style={{ marginTop: 16 }}>
           {whitelist.length === 0 && <div className="empty-state">暂无管理员白名单</div>}
-          {whitelist.map((item) => (
-            <div key={item.id} className="list-item admin-list-compact">
-              <div className="stack">
-                <strong>{item.linuxdoSubject}</strong>
-                <span className="muted admin-checkin-meta">{item.notes || '无备注'}</span>
+          {whitelist.map((item) => {
+            const isCurrentAdmin = item.linuxdoSubject === currentSubject;
+            const isProtected = isCurrentAdmin || whitelist.length <= 1;
+
+            return (
+              <div key={item.id} className="list-item admin-list-compact">
+                <div className="stack">
+                  <strong>{item.linuxdoSubject}</strong>
+                  <span className="muted admin-checkin-meta">{item.notes || '无备注'}</span>
+                </div>
+                <span className="muted admin-checkin-meta">
+                  {formatAdminDateTime(item.createdAt)}
+                </span>
+                <button
+                  className="button danger"
+                  disabled={isProtected}
+                  title={
+                    isCurrentAdmin
+                      ? '当前登录管理员不能删除自己'
+                      : whitelist.length <= 1
+                        ? '至少保留一名管理员'
+                        : undefined
+                  }
+                  onClick={() => void onRemove(item.id)}
+                >
+                  {isCurrentAdmin ? '当前账号' : whitelist.length <= 1 ? '已保护' : '删除'}
+                </button>
               </div>
-              <span className="muted admin-checkin-meta">
-                {formatAdminDateTime(item.createdAt)}
-              </span>
-              <button className="button danger" onClick={() => void onRemove(item.id)}>
-                删除
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

@@ -98,6 +98,14 @@ const configSchema = z.object({
   SUB2API_ADMIN_API_KEY: z.string().min(1, 'SUB2API_ADMIN_API_KEY 不能为空'),
   SUB2API_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL: z.string().default('6h'),
+  WELFARE_RATE_LIMIT_AUTH_WINDOW: z.string().default('10m'),
+  WELFARE_RATE_LIMIT_AUTH_LIMIT: z.coerce.number().int().positive().default(20),
+  WELFARE_RATE_LIMIT_CHECKIN_WINDOW: z.string().default('5m'),
+  WELFARE_RATE_LIMIT_CHECKIN_LIMIT: z.coerce.number().int().positive().default(6),
+  WELFARE_RATE_LIMIT_REDEEM_WINDOW: z.string().default('10m'),
+  WELFARE_RATE_LIMIT_REDEEM_LIMIT: z.coerce.number().int().positive().default(10),
+  WELFARE_RATE_LIMIT_ADMIN_MUTATION_WINDOW: z.string().default('1m'),
+  WELFARE_RATE_LIMIT_ADMIN_MUTATION_LIMIT: z.coerce.number().int().positive().default(30),
 
   DEFAULT_CHECKIN_ENABLED: booleanFromString.default(true),
   DEFAULT_DAILY_REWARD: z.coerce.number().positive().default(10),
@@ -129,6 +137,22 @@ const revokedTokenCleanupIntervalMs = parseDurationMs(
   raw.WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL,
   'WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL'
 );
+const authRateLimitWindowMs = parseDurationMs(
+  raw.WELFARE_RATE_LIMIT_AUTH_WINDOW,
+  'WELFARE_RATE_LIMIT_AUTH_WINDOW'
+);
+const checkinRateLimitWindowMs = parseDurationMs(
+  raw.WELFARE_RATE_LIMIT_CHECKIN_WINDOW,
+  'WELFARE_RATE_LIMIT_CHECKIN_WINDOW'
+);
+const redeemRateLimitWindowMs = parseDurationMs(
+  raw.WELFARE_RATE_LIMIT_REDEEM_WINDOW,
+  'WELFARE_RATE_LIMIT_REDEEM_WINDOW'
+);
+const adminMutationRateLimitWindowMs = parseDurationMs(
+  raw.WELFARE_RATE_LIMIT_ADMIN_MUTATION_WINDOW,
+  'WELFARE_RATE_LIMIT_ADMIN_MUTATION_WINDOW'
+);
 parseDurationMs(raw.WELFARE_JWT_EXPIRES_IN, 'WELFARE_JWT_EXPIRES_IN');
 
 const frontendOrigin = normalizeOrigin(raw.WELFARE_FRONTEND_URL, 'WELFARE_FRONTEND_URL');
@@ -155,6 +179,10 @@ export const config = {
   WELFARE_CORS_ORIGINS:
     configuredCorsOrigins.length > 0 ? configuredCorsOrigins : [frontendOrigin],
   WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL_MS: revokedTokenCleanupIntervalMs,
+  WELFARE_RATE_LIMIT_AUTH_WINDOW_MS: authRateLimitWindowMs,
+  WELFARE_RATE_LIMIT_CHECKIN_WINDOW_MS: checkinRateLimitWindowMs,
+  WELFARE_RATE_LIMIT_REDEEM_WINDOW_MS: redeemRateLimitWindowMs,
+  WELFARE_RATE_LIMIT_ADMIN_MUTATION_WINDOW_MS: adminMutationRateLimitWindowMs,
   BOOTSTRAP_ADMIN_SUBJECTS: bootstrapAdminSubjects,
   SUB2API_BASE_URL: raw.SUB2API_BASE_URL.replace(/\/+$/, '')
 };
