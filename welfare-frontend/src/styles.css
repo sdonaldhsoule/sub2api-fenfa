@@ -2503,11 +2503,11 @@ h3 {
 
 .destiny-stick-wrapper {
   position: absolute;
-  top: 45%;
+  top: 55%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 36px;
-  height: 280px;
+  width: 44px;
+  height: 180px;
   z-index: 10;
 }
 

@@ -30,9 +30,15 @@ const initialEditForm = {
   sort_order: '0'
 };
 
+function getEnabledTotalWeight(items: AdminBlindboxItem[]) {
+  return items
+    .filter((item) => item.enabled)
+    .reduce((sum, item) => sum + item.weight, 0);
+}
+
 function calculateExpectedValue(items: AdminBlindboxItem[]) {
   const enabledItems = items.filter((item) => item.enabled);
-  const totalWeight = enabledItems.reduce((sum, item) => sum + item.weight, 0);
+  const totalWeight = getEnabledTotalWeight(items);
   if (totalWeight <= 0) {
     return 0;
   }
@@ -40,6 +46,19 @@ function calculateExpectedValue(items: AdminBlindboxItem[]) {
     (sum, item) => sum + (item.reward_balance * item.weight) / totalWeight,
     0
   );
+}
+
+function calculateProbability(item: AdminBlindboxItem, items: AdminBlindboxItem[]) {
+  if (!item.enabled) {
+    return null;
+  }
+
+  const totalWeight = getEnabledTotalWeight(items);
+  if (totalWeight <= 0) {
+    return null;
+  }
+
+  return (item.weight / totalWeight) * 100;
 }
 
 function minReward(items: AdminBlindboxItem[]) {
@@ -70,6 +89,7 @@ export function AdminBlindboxPanel({
   const [editForm, setEditForm] = useState(initialEditForm);
 
   const enabledItems = useMemo(() => items.filter((item) => item.enabled), [items]);
+  const enabledTotalWeight = useMemo(() => getEnabledTotalWeight(items), [items]);
   const expectedValue = useMemo(() => calculateExpectedValue(items), [items]);
   const currentItem = useMemo(
     () => items.find((item) => item.id === editingId) ?? null,
@@ -256,9 +276,13 @@ export function AdminBlindboxPanel({
       <div className="admin-stats-summary">
         <span className="chip">盲盒状态：{blindboxEnabled ? '开启中' : '已关闭'}</span>
         <span className="chip">可用奖项：{enabledItems.length}</span>
+        <span className="chip">总权重：{enabledTotalWeight}</span>
         <span className="chip">奖励范围：{minReward(items) ?? '-'} ~ {maxReward(items) ?? '-'}</span>
         <span className="chip">理论期望值：{expectedValue.toFixed(2)}</span>
       </div>
+      <p className="muted" style={{ margin: '0 0 18px', fontSize: 13 }}>
+        理论概率按「单个奖项权重 / 当前所有已启用奖项权重总和」计算；停用奖项不会参与抽取。
+      </p>
 
       <div className="form-actions actions" style={{ marginTop: 0, marginBottom: 18 }}>
         <button
@@ -428,34 +452,43 @@ export function AdminBlindboxPanel({
         <div className="empty-state" style={{ marginTop: 18 }}>当前还没有配置盲盒奖项。</div>
       ) : (
         <div className="blindbox-list-grid" style={{ marginTop: 18 }}>
-          {items.map((item) => (
-            <article key={item.id} className="blindbox-admin-card">
-              <strong>{item.title}</strong>
-              <div className="admin-stats-summary" style={{ marginBottom: 12 }}>
-                <span className="chip">奖励 {item.reward_balance}</span>
-                <span className="chip">权重 {item.weight}</span>
-                <span className="chip">排序 {item.sort_order}</span>
-              </div>
-              <p className="blindbox-admin-meta">
-                {item.enabled ? '已启用' : '已停用'} · {item.notes || '无备注'}
-              </p>
-              <p className="blindbox-admin-meta">
-                更新于 {formatAdminDateTime(item.updated_at || item.created_at)}
-              </p>
-              <div className="form-actions actions">
-                <button className="button ghost" onClick={() => beginEdit(item)}>
-                  编辑
-                </button>
-                <button
-                  className={`button ${item.enabled ? 'danger' : 'primary'}`}
-                  onClick={() => void toggleItem(item)}
-                  disabled={updatingId === item.id}
-                >
-                  {updatingId === item.id ? '处理中...' : item.enabled ? '停用' : '启用'}
-                </button>
-              </div>
-            </article>
-          ))}
+          {items.map((item) => {
+            const probability = calculateProbability(item, items);
+
+            return (
+              <article key={item.id} className="blindbox-admin-card">
+                <strong>{item.title}</strong>
+                <div className="admin-stats-summary" style={{ marginBottom: 12 }}>
+                  <span className="chip">奖励 {item.reward_balance}</span>
+                  <span className="chip">权重 {item.weight}</span>
+                  <span className="chip">排序 {item.sort_order}</span>
+                  <span className="chip blindbox-probability-chip">
+                    {probability == null
+                      ? '理论概率 --'
+                      : `理论概率 ${probability.toFixed(2)}%`}
+                  </span>
+                </div>
+                <p className="blindbox-admin-meta">
+                  {item.enabled ? '已启用' : '已停用'} · {item.notes || '无备注'}
+                </p>
+                <p className="blindbox-admin-meta">
+                  更新于 {formatAdminDateTime(item.updated_at || item.created_at)}
+                </p>
+                <div className="form-actions actions">
+                  <button className="button ghost" onClick={() => beginEdit(item)}>
+                    编辑
+                  </button>
+                  <button
+                    className={`button ${item.enabled ? 'danger' : 'primary'}`}
+                    onClick={() => void toggleItem(item)}
+                    disabled={updatingId === item.id}
+                  >
+                    {updatingId === item.id ? '处理中...' : item.enabled ? '停用' : '启用'}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

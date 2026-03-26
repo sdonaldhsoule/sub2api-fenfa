@@ -656,11 +656,14 @@ export function CheckinPage() {
               >
                 <div className="fortune-panel-left blindbox-surface">
                   <span className="fortune-panel-kicker">surprise lane</span>
-                  <div className="blindbox-orbital">
-                    <div className="blindbox-orbital-ring ring-a" />
-                    <div className="blindbox-orbital-ring ring-b" />
-                    <div className="blindbox-orbital-core">
-                      <span>LUCK</span>
+                  <div className="fortune-cylinder-wrapper" style={{ transform: 'scale(0.55)', transformOrigin: 'top center', marginBottom: -110, marginTop: 10 }}>
+                    <div className="fortune-sticks-container">
+                      {[...Array(5)].map((_, i) => (
+                        <div key={i} className="fortune-stick" />
+                      ))}
+                    </div>
+                    <div className="fortune-cylinder">
+                      <div className="fortune-cylinder-label">灵签</div>
                     </div>
                   </div>
                   <div className="fortune-panel-value blindbox-value">{getBlindboxRangeLabel(status)}</div>

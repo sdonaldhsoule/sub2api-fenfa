@@ -139,7 +139,7 @@ export function BlindboxRevealOverlay({
                         ? { rotate: -15, y: 25, filter: 'blur(3px)', opacity: 0.6 }
                         : { rotate: 0, y: 0 }
                 }
-                transition={{ duration: stage === 'suspense' ? 0.35 : 0.8, repeat: stage === 'suspense' ? Infinity : 0 }}
+                transition={{ duration: stage === 'suspense' ? 0.9 : 0.8, repeat: stage === 'suspense' ? Infinity : 0 }}
               >
                 <div className="fortune-sticks-container">
                   {[...Array(5)].map((_, i) => (
@@ -153,7 +153,7 @@ export function BlindboxRevealOverlay({
                             ? { y: 0, opacity: 0.3 }
                             : { y: 0 }
                       }
-                      transition={{ duration: 0.15 + i * 0.05, repeat: Infinity, repeatType: 'reverse' }}
+                      transition={{ duration: 0.35 + i * 0.1, repeat: Infinity, repeatType: 'reverse' }}
                     />
                   ))}
                 </div>
@@ -167,10 +167,10 @@ export function BlindboxRevealOverlay({
                 {(stage === 'reveal' || stage === 'resolved') && data && (
                   <motion.div
                     className="destiny-stick-wrapper"
-                    initial={{ y: 150, scale: 0.4, rotate: -15, opacity: 0 }}
-                    animate={{ y: -70, scale: 1.25, rotate: 0, opacity: 1 }}
+                    initial={{ y: 50, scale: 0.4, rotate: -15, opacity: 0 }}
+                    animate={{ y: -80, scale: 1.15, rotate: 0, opacity: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ type: 'spring', damping: 14, stiffness: 120, mass: 0.8 }}
+                    transition={{ type: 'spring', damping: 15, stiffness: 100, mass: 0.8 }}
                   >
                     <div className="destiny-stick">
                       <div className="destiny-stick-text">
