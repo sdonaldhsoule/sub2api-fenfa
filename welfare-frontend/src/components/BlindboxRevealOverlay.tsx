@@ -132,14 +132,18 @@ export function BlindboxRevealOverlay({
                 className="fortune-cylinder-wrapper"
                 animate={
                   stage === 'charging'
-                    ? { rotate: [0, -4, 4, -2, 0], y: [0, -8, 0] }
+                    ? { rotate: [0, -5, 5, 0], y: [0, -6, 0] }
                     : stage === 'suspense'
-                      ? { rotate: [0, 14, -14, 10, -10, 6, -6, 0], y: [0, -12, 8, -8, 4, -4, 0] }
+                      ? { rotate: [-10, 10], y: [0, -12] }
                       : stage === 'reveal' || stage === 'resolved'
                         ? { rotate: -15, y: 25, filter: 'blur(3px)', opacity: 0.6 }
                         : { rotate: 0, y: 0 }
                 }
-                transition={{ duration: stage === 'suspense' ? 0.9 : 0.8, repeat: stage === 'suspense' ? Infinity : 0 }}
+                transition={
+                  stage === 'suspense'
+                    ? { duration: 0.3, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }
+                    : { duration: 0.6 }
+                }
               >
                 <div className="fortune-sticks-container">
                   {[...Array(5)].map((_, i) => (
@@ -148,12 +152,17 @@ export function BlindboxRevealOverlay({
                       className="fortune-stick"
                       animate={
                         stage === 'suspense'
-                          ? { y: [0, -20, 0, -30, 0], rotate: [0, (i % 2 === 0 ? 6 : -6), 0] }
+                          ? { y: [0, -28], rotate: [0, i % 2 === 0 ? 8 : -8] }
                           : stage === 'reveal' || stage === 'resolved'
                             ? { y: 0, opacity: 0.3 }
                             : { y: 0 }
                       }
-                      transition={{ duration: 0.35 + i * 0.1, repeat: Infinity, repeatType: 'reverse' }}
+                      transition={{ 
+                        duration: 0.16 + i * 0.04, 
+                        repeat: Infinity, 
+                        repeatType: 'reverse', 
+                        ease: 'easeInOut' 
+                      }}
                     />
                   ))}
                 </div>
