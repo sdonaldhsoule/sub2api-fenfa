@@ -9,8 +9,8 @@ export type CheckinMode = 'normal' | 'blindbox';
 
 export interface SessionUser {
   sub2api_user_id: number;
-  linuxdo_subject: string;
-  synthetic_email: string;
+  email: string;
+  linuxdo_subject: string | null;
   username: string;
   avatar_url: string | null;
   is_admin: boolean;
@@ -103,8 +103,9 @@ export interface AdminOverview {
 export interface AdminCheckinItem {
   id: number;
   sub2apiUserId: number;
-  linuxdoSubject: string;
-  syntheticEmail: string;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
   checkinDate: string;
   checkinMode: CheckinMode;
   blindboxItemId: number | null;
@@ -168,8 +169,9 @@ export interface AdminRedeemClaimItem {
   redeemCode: string;
   redeemTitle: string;
   sub2apiUserId: number;
-  linuxdoSubject: string;
-  syntheticEmail: string;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
   rewardBalance: number;
   idempotencyKey: string;
   grantStatus: 'pending' | 'success' | 'failed';
@@ -195,9 +197,19 @@ export interface AdminRedeemClaimQuery {
   code?: string;
 }
 
+export interface AdminUserSearchItem {
+  sub2api_user_id: number;
+  email: string;
+  username: string;
+  linuxdo_subject: string | null;
+}
+
 export interface WhitelistItem {
   id: number;
-  linuxdoSubject: string;
+  sub2apiUserId: number | null;
+  email: string;
+  username: string;
+  linuxdoSubject: string | null;
   notes: string;
   createdAt: string;
 }

@@ -39,6 +39,14 @@ function renderGrantTag(status: AdminCheckinItem['grantStatus']) {
   return <span className={`status-tag ${status}`}>{label}</span>;
 }
 
+function getUserIdentity(item: Pick<AdminCheckinItem, 'sub2apiUsername' | 'sub2apiEmail' | 'linuxdoSubject'>) {
+  return {
+    title: item.sub2apiUsername || item.sub2apiEmail,
+    subtitle: item.sub2apiEmail,
+    linuxdo: item.linuxdoSubject
+  };
+}
+
 export function AdminCheckinsPanel({
   settings,
   dailyRewardInput,
@@ -193,7 +201,7 @@ export function AdminCheckinsPanel({
         </div>
         <div className="form-grid admin-checkin-filters">
           <label className="field">
-            <span>LinuxDo Subject</span>
+            <span>用户关键字</span>
             <input
               type="text"
               value={checkinFilterForm.subject}
@@ -273,11 +281,16 @@ export function AdminCheckinsPanel({
         ) : checkinList && checkinList.items.length > 0 ? (
           <>
             <div className="list" style={{ marginTop: 16 }}>
-              {checkinList.items.map((item) => (
+              {checkinList.items.map((item) => {
+                const identity = getUserIdentity(item);
+                return (
                 <div key={item.id} className="list-item admin-checkin-item">
                   <div className="stack">
-                    <strong>{item.linuxdoSubject}</strong>
-                    <span className="muted admin-checkin-meta">{item.syntheticEmail}</span>
+                    <strong>{identity.title}</strong>
+                    <span className="muted admin-checkin-meta">{identity.subtitle}</span>
+                    {identity.linuxdo && (
+                      <span className="muted admin-checkin-meta">LinuxDo: {identity.linuxdo}</span>
+                    )}
                     <span className="muted admin-checkin-meta">用户 #{item.sub2apiUserId}</span>
                   </div>
 
@@ -333,7 +346,8 @@ export function AdminCheckinsPanel({
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="pagination-bar">

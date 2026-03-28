@@ -44,7 +44,8 @@
   - `DEFAULT_CHECKIN_ENABLED`
   - `DEFAULT_DAILY_REWARD`
   - `DEFAULT_TIMEZONE`：默认 `Asia/Shanghai`，启动时会校验合法性
-  - `BOOTSTRAP_ADMIN_SUBJECTS`：启动时自动写入管理员白名单，逗号分隔，subject 会在启动时校验格式
+  - `BOOTSTRAP_ADMIN_USER_IDS`：推荐使用，启动时按 sub2api 用户 ID 自动写入管理员白名单，逗号分隔
+  - `BOOTSTRAP_ADMIN_SUBJECTS`：旧版兼容配置，启动后会尝试按 LinuxDo subject 回填到 sub2api 用户 ID
 
 ## 运行方式
 
@@ -72,6 +73,7 @@ npm test
 - 登录回调成功后，后端不会写 Cookie，而是向前端回跳并附带一次性交接码
 - OAuth `state` 与前端 `session handoff` 都是服务端登记的一次性工件，消费后立即失效，用于降低重放风险
 - 前端再调用 `POST /api/auth/session-handoff/exchange` 换取 Bearer session token，并存入本地存储
+- 如果页面由 sub2api 内置页或带 token 的外链打开，前端会调用 `POST /api/auth/sub2api/exchange` 直接换取福利站 session token
 - 后端鉴权统一读取 `Authorization: Bearer <token>`
 - JWT 过期时间由 `WELFARE_JWT_EXPIRES_IN` 控制，默认回退值已收紧为 `12h`
 - `POST /api/auth/logout` 会在服务端撤销当前 Bearer token；后台还会按 `WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL` 定期清理已过期的撤销记录
@@ -109,6 +111,7 @@ npm test
 - `GET /api/auth/linuxdo/start`：跳转 LinuxDo 登录，并创建一次性 `state`
 - `GET /api/auth/linuxdo/callback`：处理 OAuth 回调，消费一次性 `state`，再回跳前端 `/auth/callback` 并在 URL hash 中附带一次性交接码
 - `POST /api/auth/session-handoff/exchange`：把前端回调页拿到的一次性交接码换成 session token；交接码仅可使用一次
+- `POST /api/auth/sub2api/exchange`：把 sub2api 内置页或外链携带的 `access_token` 换成福利站 session token
 - `GET /api/auth/me`：返回当前会话信息，包含 `is_admin`
 - `POST /api/auth/logout`：退出登录，并在服务端撤销当前 Bearer token（前端随后清理本地 token）
 
@@ -131,6 +134,7 @@ npm test
 - `GET /api/admin/stats/daily`：按天统计
 - `GET /api/admin/checkins`：分页查询签到明细
 - `POST /api/admin/checkins/:id/retry`：重试失败签到，或接管已超时的 `pending` 签到
+- `GET /api/admin/sub2api-users/search`：搜索 sub2api 用户，用于添加管理员白名单
 - `GET /api/admin/whitelist`：管理员白名单列表
 - `POST /api/admin/whitelist`：新增或更新白名单
 - `DELETE /api/admin/whitelist/:id`：删除白名单
@@ -144,6 +148,7 @@ npm test
 
 - 用户识别规则：`linuxdo-{subject}@linuxdo-connect.invalid`
 - 查询用户：`GET /api/v1/admin/users?search=<synthetic_email>`
+- 读取当前登录用户：`GET /api/v1/auth/me`
 - 发放额度：`POST /api/v1/admin/users/:id/balance`
 - 签到幂等键：`Idempotency-Key: welfare-checkin:{userId}:{checkinDate}`
 - 兑换幂等键：`Idempotency-Key: welfare-redeem:{redeemCodeId}:{userId}`

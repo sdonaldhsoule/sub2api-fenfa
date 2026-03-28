@@ -13,6 +13,7 @@ import { fail, ok } from '../utils/response.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import {
   createCodeChallenge,
+  extractLinuxDoSubjectFromEmail,
   randomBase64Url,
   signOAuthState,
   signSessionHandoff,
@@ -48,6 +49,11 @@ const callbackQuerySchema = z.object({
 const sessionHandoffExchangeSchema = z.object({
   handoff: z.string().min(1, 'handoff 不能为空')
 });
+const sub2apiExchangeSchema = z.object({
+  access_token: z.string().min(1, 'access_token 不能为空'),
+  user_id: z.coerce.number().int().positive().optional(),
+  redirect: z.string().optional()
+});
 
 const authRateLimit = createRateLimitMiddleware({
   bucket: 'auth',
@@ -58,6 +64,22 @@ const authRateLimit = createRateLimitMiddleware({
 });
 
 export const authRouter = Router();
+
+function createSessionToken(input: {
+  sub2apiUserId: number;
+  email: string;
+  username: string;
+  linuxdoSubject: string | null;
+  avatarUrl?: string | null;
+}): string {
+  return sessionService.sign({
+    sub2apiUserId: input.sub2apiUserId,
+    email: input.email,
+    linuxdoSubject: input.linuxdoSubject,
+    username: input.username,
+    avatarUrl: input.avatarUrl ?? null
+  });
+}
 
 authRouter.get('/linuxdo/start', authRateLimit, asyncHandler(async (req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -158,19 +180,18 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
       oauthState.codeVerifier
     );
     const profile = await linuxDoOAuthService.fetchUserInfo(accessToken);
-    const syntheticEmail = toSyntheticEmail(profile.subject);
-
-    const sub2apiUser = await sub2apiClient.findUserBySyntheticEmail(syntheticEmail);
+    const email = toSyntheticEmail(profile.subject);
+    const sub2apiUser = await sub2apiClient.findUserByEmail(email);
     if (!sub2apiUser) {
       sendFrontendError('SUB2API_USER_REQUIRED', '该 LinuxDo 账号尚未在 sub2api 注册');
       return;
     }
 
-    const token = sessionService.sign({
+    const token = createSessionToken({
       sub2apiUserId: sub2apiUser.id,
+      email,
       linuxdoSubject: profile.subject,
-      syntheticEmail,
-      username: profile.username,
+      username: profile.username || sub2apiUser.username || email,
       avatarUrl: profile.avatarUrl
     });
 
@@ -248,18 +269,50 @@ authRouter.post('/session-handoff/exchange', authRateLimit, asyncHandler(async (
   });
 }));
 
+authRouter.post('/sub2api/exchange', authRateLimit, asyncHandler(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+
+  const parsed = sub2apiExchangeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    fail(res, 400, 'BAD_REQUEST', parsed.error.issues[0]?.message ?? 'sub2api 换票参数无效');
+    return;
+  }
+
+  const currentUser = await sub2apiClient.getCurrentUser(parsed.data.access_token);
+  if (parsed.data.user_id && parsed.data.user_id !== currentUser.id) {
+    fail(res, 401, 'SUB2API_USER_MISMATCH', 'sub2api 当前登录用户不匹配');
+    return;
+  }
+
+  const redirect = sanitizeRedirectPath(parsed.data.redirect);
+  const token = createSessionToken({
+    sub2apiUserId: currentUser.id,
+    email: currentUser.email,
+    username: currentUser.username,
+    linuxdoSubject: extractLinuxDoSubjectFromEmail(currentUser.email)
+  });
+
+  ok(res, {
+    session_token: token,
+    redirect
+  });
+}));
+
 authRouter.get('/me', requireAuth, asyncHandler(async (req, res) => {
   res.set('Cache-Control', 'no-store');
 
   const user = req.sessionUser!;
-  const isAdmin = await welfareRepository.hasAdminSubject(user.linuxdoSubject);
+  const isAdminByUserId = await welfareRepository.hasAdminUserId(user.sub2apiUserId);
+  const isAdminByLegacySubject = user.linuxdoSubject
+    ? await welfareRepository.hasLegacyAdminSubject(user.linuxdoSubject)
+    : false;
   ok(res, {
     sub2api_user_id: user.sub2apiUserId,
+    email: user.email,
     linuxdo_subject: user.linuxdoSubject,
-    synthetic_email: user.syntheticEmail,
     username: user.username,
     avatar_url: user.avatarUrl,
-    is_admin: isAdmin
+    is_admin: isAdminByUserId || isAdminByLegacySubject
   });
 }));
 

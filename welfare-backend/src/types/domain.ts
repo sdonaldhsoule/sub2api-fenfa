@@ -1,7 +1,7 @@
 export interface SessionUser {
   sub2apiUserId: number;
-  linuxdoSubject: string;
-  syntheticEmail: string;
+  email: string;
+  linuxdoSubject: string | null;
   username: string;
   avatarUrl: string | null;
 }
@@ -36,8 +36,9 @@ export interface BlindboxItem {
 export interface CheckinRecord {
   id: number;
   sub2apiUserId: number;
-  linuxdoSubject: string;
-  syntheticEmail: string;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
   checkinDate: string;
   checkinMode: CheckinMode;
   blindboxItemId: number | null;
@@ -69,8 +70,9 @@ export interface RedeemClaim {
   id: number;
   redeemCodeId: number;
   sub2apiUserId: number;
-  linuxdoSubject: string;
-  syntheticEmail: string;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
   redeemCode: string;
   redeemTitle: string;
   rewardBalance: number;

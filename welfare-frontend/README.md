@@ -40,6 +40,7 @@ npm run preview
 
 - `/login`：登录入口，跳转后端 `GET /api/auth/linuxdo/start`
 - `/auth/callback`：OAuth 回调页，负责把一次性交接码换成 Bearer 会话，并处理错误提示
+- `/auth/sub2api-bridge`：sub2api 内置页免登录桥接页，用 `token/user_id` 换取福利站会话
 - `/checkin`：签到页，展示今日状态、兑换区和历史记录
 - `/admin`：管理员页，展示配置、统计、白名单、兑换码与兑换记录；前端会先做管理员守卫
 
@@ -47,6 +48,7 @@ npm run preview
 
 - 当前前端统一使用后端签发的 Bearer token 维持登录态
 - OAuth 回调成功后，前端会调用 `POST /api/auth/session-handoff/exchange` 换取 session token
+- 如果页面由 sub2api 内置页或外链打开，前端会调用 `POST /api/auth/sub2api/exchange` 直接复用 sub2api 登录态
 - 一次性交接码只能消费一次；如果用户重复打开旧回调页，会被要求重新登录
 - session token 保存到浏览器本地存储，后续请求自动携带 `Authorization: Bearer <token>`
 - 前端通过 `GET /api/auth/me` 刷新当前会话状态
@@ -78,5 +80,6 @@ npm run preview
 - `src/lib/auth.test.tsx`：会话恢复失败时的错误分类
 - `src/pages/LoginPage.test.tsx`：登录后原路返回
 - `src/pages/AuthCallbackPage.test.tsx`：一次性交接码换 token
+- `src/pages/Sub2apiBridgePage.test.tsx`：sub2api 免登录桥接
 - `src/pages/CheckinPage.test.tsx`：签到页主流程数据加载
 - `src/pages/AdminPage.test.tsx`：后台总览与分区切换

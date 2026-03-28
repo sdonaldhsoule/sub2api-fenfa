@@ -27,6 +27,18 @@ function renderGrantTag(status: 'success' | 'pending' | 'failed') {
   return <span className={`status-tag ${status}`}>{label}</span>;
 }
 
+function getUserIdentity(item: {
+  sub2apiUsername: string;
+  sub2apiEmail: string;
+  linuxdoSubject: string | null;
+}) {
+  return {
+    title: item.sub2apiUsername || item.sub2apiEmail,
+    subtitle: item.sub2apiEmail,
+    linuxdo: item.linuxdoSubject
+  };
+}
+
 export function AdminRedeemClaimsPanel({
   onUnauthorized,
   onError,
@@ -97,7 +109,7 @@ export function AdminRedeemClaimsPanel({
       }
       onError('');
       onSuccess(
-        `补发成功：${result.item.redeemCode} / ${result.item.linuxdoSubject}${
+        `补发成功：${result.item.redeemCode} / ${(result.item.sub2apiUsername || result.item.sub2apiEmail)}${
           result.new_balance !== null ? `，当前余额 ${result.new_balance}` : ''
         }`
       );
@@ -140,7 +152,7 @@ export function AdminRedeemClaimsPanel({
             />
           </label>
           <label className="field">
-            <span>LinuxDo Subject</span>
+            <span>用户关键字</span>
             <input
               type="text"
               value={filterForm.subject}
@@ -196,16 +208,21 @@ export function AdminRedeemClaimsPanel({
         ) : claimList && claimList.items.length > 0 ? (
           <>
             <div className="list" style={{ marginTop: 16 }}>
-              {claimList.items.map((item) => (
+              {claimList.items.map((item) => {
+                const identity = getUserIdentity(item);
+                return (
                 <div key={item.id} className="list-item admin-redeem-claim-item">
                   <div className="stack">
                     <strong>{item.redeemTitle}</strong>
                     <span className="muted admin-redeem-meta">{item.redeemCode}</span>
-                    <span className="muted admin-redeem-meta">{item.syntheticEmail}</span>
+                    <span className="muted admin-redeem-meta">{identity.subtitle}</span>
                   </div>
 
                   <div className="stack">
-                    <strong>{item.linuxdoSubject}</strong>
+                    <strong>{identity.title}</strong>
+                    {identity.linuxdo && (
+                      <span className="muted admin-redeem-meta">LinuxDo: {identity.linuxdo}</span>
+                    )}
                     <span className="muted admin-redeem-meta">
                       用户 #{item.sub2apiUserId}
                     </span>
@@ -256,7 +273,8 @@ export function AdminRedeemClaimsPanel({
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="pagination-bar">

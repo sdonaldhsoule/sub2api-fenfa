@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useAuth } from './lib/auth';
 import { LoginPage } from './pages/LoginPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
+import { Sub2apiBridgePage } from './pages/Sub2apiBridgePage';
 import { CheckinPage } from './pages/CheckinPage';
 import { AdminPage } from './pages/AdminPage';
 
@@ -84,6 +85,7 @@ export default function App() {
       <Routes location={location} key={location.pathname}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/auth/sub2api-bridge" element={<Sub2apiBridgePage />} />
         <Route
           path="/checkin"
           element={

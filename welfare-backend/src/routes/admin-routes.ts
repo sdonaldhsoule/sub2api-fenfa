@@ -20,7 +20,8 @@ import {
   ForbiddenError as RedeemForbiddenError,
   NotFoundError as RedeemNotFoundError
 } from '../services/redeem-service.js';
-import { isSafeLinuxDoSubject } from '../utils/oauth.js';
+import { sub2apiClient } from '../services/sub2api-client.js';
+import { extractLinuxDoSubjectFromEmail, isSafeLinuxDoSubject } from '../utils/oauth.js';
 import { isValidTimezone } from '../utils/date.js';
 import { fail, ok } from '../utils/response.js';
 import { asyncHandler } from '../utils/async-handler.js';
@@ -29,8 +30,9 @@ function toAdminCheckinPayload(record: CheckinRecord) {
   return {
     id: record.id,
     sub2apiUserId: record.sub2apiUserId,
+    sub2apiEmail: record.sub2apiEmail,
+    sub2apiUsername: record.sub2apiUsername,
     linuxdoSubject: record.linuxdoSubject,
-    syntheticEmail: record.syntheticEmail,
     checkinDate: record.checkinDate,
     checkinMode: record.checkinMode,
     blindboxItemId: record.blindboxItemId,
@@ -82,8 +84,9 @@ function toAdminRedeemClaimPayload(item: RedeemClaim) {
     redeemCode: item.redeemCode,
     redeemTitle: item.redeemTitle,
     sub2apiUserId: item.sub2apiUserId,
+    sub2apiEmail: item.sub2apiEmail,
+    sub2apiUsername: item.sub2apiUsername,
     linuxdoSubject: item.linuxdoSubject,
-    syntheticEmail: item.syntheticEmail,
     rewardBalance: item.rewardBalance,
     idempotencyKey: item.idempotencyKey,
     grantStatus: item.grantStatus,
@@ -175,8 +178,14 @@ const checkinsQuerySchema = z.object({
 });
 
 const whitelistCreateSchema = z.object({
-  linuxdo_subject: z.string().min(1).max(64),
+  sub2api_user_id: z.number().int().positive(),
+  email: z.string().email(),
+  username: z.string().min(1).max(120),
+  linuxdo_subject: z.string().min(1).max(64).optional(),
   notes: z.string().max(500).optional()
+});
+const sub2apiUserSearchSchema = z.object({
+  q: z.string().min(1).max(120)
 });
 
 const redeemCodeCreateSchema = z.object({
@@ -370,6 +379,22 @@ adminRouter.get('/whitelist', asyncHandler(async (_req, res) => {
   ok(res, data);
 }));
 
+adminRouter.get('/sub2api-users/search', asyncHandler(async (req, res) => {
+  const parsed = sub2apiUserSearchSchema.safeParse(req.query);
+  if (!parsed.success) {
+    fail(res, 400, 'BAD_REQUEST', 'q 参数非法');
+    return;
+  }
+
+  const items = await sub2apiClient.searchAdminUsers(parsed.data.q.trim());
+  ok(res, items.map((item) => ({
+    sub2api_user_id: item.id,
+    email: item.email,
+    username: item.username || item.email,
+    linuxdo_subject: extractLinuxDoSubjectFromEmail(item.email)
+  })));
+}));
+
 adminRouter.post('/whitelist', asyncHandler(async (req, res) => {
   const parsed = whitelistCreateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -377,16 +402,19 @@ adminRouter.post('/whitelist', asyncHandler(async (req, res) => {
     return;
   }
 
-  const subject = parsed.data.linuxdo_subject.trim();
-  if (!isSafeLinuxDoSubject(subject)) {
+  const subject = parsed.data.linuxdo_subject?.trim();
+  if (subject && !isSafeLinuxDoSubject(subject)) {
     fail(res, 400, 'BAD_REQUEST', 'linuxdo_subject 格式非法');
     return;
   }
 
-  const item = await welfareRepository.addAdminWhitelist(
-    subject,
-    parsed.data.notes?.trim() ?? ''
-  );
+  const item = await welfareRepository.addAdminWhitelist({
+    sub2apiUserId: parsed.data.sub2api_user_id,
+    email: parsed.data.email.trim(),
+    username: parsed.data.username.trim(),
+    linuxdoSubject: subject || null,
+    notes: parsed.data.notes?.trim() ?? ''
+  });
   ok(res, item);
 }));
 
@@ -406,7 +434,7 @@ adminRouter.delete('/whitelist/:id', asyncHandler(async (req, res) => {
     return;
   }
 
-  if (target.linuxdoSubject === currentUser.linuxdoSubject) {
+  if (target.sub2apiUserId === currentUser.sub2apiUserId) {
     fail(res, 409, 'WHITELIST_CONFLICT', '不能删除当前登录管理员，请使用其他管理员账号操作');
     return;
   }

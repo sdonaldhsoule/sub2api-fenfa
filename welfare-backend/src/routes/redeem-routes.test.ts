@@ -33,8 +33,8 @@ vi.mock('../middleware/auth-middleware.js', () => ({
   requireAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.sessionUser = {
       sub2apiUserId: 1,
+      email: 'linuxdo-subject@linuxdo-connect.invalid',
       linuxdoSubject: 'subject',
-      syntheticEmail: 'linuxdo-subject@linuxdo-connect.invalid',
       username: 'tester',
       avatarUrl: null
     };

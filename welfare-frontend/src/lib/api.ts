@@ -9,6 +9,7 @@ import type {
   AdminRedeemClaimQuery,
   AdminRedeemCodeItem,
   AdminSettings,
+  AdminUserSearchItem,
   ApiEnvelope,
   CheckinHistoryItem,
   CheckinStatus,
@@ -116,6 +117,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ handoff })
     }),
+  exchangeSub2apiSession: (payload: {
+    access_token: string;
+    user_id?: number;
+    redirect?: string;
+  }) =>
+    request<{
+      session_token: string;
+      redirect: string;
+    }>('/api/auth/sub2api/exchange', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
   getMe: (sessionToken?: string) =>
     request<SessionUser>('/api/auth/me', {
       headers: sessionToken
@@ -189,7 +202,17 @@ export const api = {
       method: 'POST'
     }),
   listWhitelist: () => request<WhitelistItem[]>('/api/admin/whitelist'),
-  addWhitelist: (payload: { linuxdo_subject: string; notes?: string }) =>
+  searchAdminSub2apiUsers: (query: string) =>
+    request<AdminUserSearchItem[]>(
+      `/api/admin/sub2api-users/search?q=${encodeURIComponent(query)}`
+    ),
+  addWhitelist: (payload: {
+    sub2api_user_id: number;
+    email: string;
+    username: string;
+    linuxdo_subject?: string | null;
+    notes?: string;
+  }) =>
     request<WhitelistItem>('/api/admin/whitelist', {
       method: 'POST',
       body: JSON.stringify(payload)

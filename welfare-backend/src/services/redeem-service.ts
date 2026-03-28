@@ -128,8 +128,9 @@ export class RedeemService {
         {
           redeemCodeId: redeemCode.id,
           sub2apiUserId: user.sub2apiUserId,
+          sub2apiEmail: user.email,
+          sub2apiUsername: user.username,
           linuxdoSubject: user.linuxdoSubject,
-          syntheticEmail: user.syntheticEmail,
           redeemCode: redeemCode.code,
           redeemTitle: redeemCode.title,
           rewardBalance: redeemCode.rewardBalance,

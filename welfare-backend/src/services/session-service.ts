@@ -6,7 +6,7 @@ import { randomBase64Url } from '../utils/oauth.js';
 
 interface SessionClaims {
   uid: number;
-  subid: string;
+  subid?: string | null;
   semail: string;
   uname: string;
   ava: string | null;
@@ -25,7 +25,7 @@ export class SessionService {
       {
         uid: user.sub2apiUserId,
         subid: user.linuxdoSubject,
-        semail: user.syntheticEmail,
+        semail: user.email,
         uname: user.username,
         ava: user.avatarUrl ?? null
       } satisfies SessionClaims,
@@ -46,9 +46,12 @@ export class SessionService {
 
     if (
       typeof decoded.uid !== 'number' ||
-      typeof decoded.subid !== 'string' ||
       typeof decoded.semail !== 'string' ||
       typeof decoded.uname !== 'string' ||
+      !(
+        decoded.subid == null ||
+        typeof decoded.subid === 'string'
+      ) ||
       (decoded.ava !== null && typeof decoded.ava !== 'string') ||
       typeof decoded.exp !== 'number'
     ) {
@@ -58,8 +61,11 @@ export class SessionService {
     return {
       user: {
         sub2apiUserId: decoded.uid,
-        linuxdoSubject: decoded.subid,
-        syntheticEmail: decoded.semail,
+        email: decoded.semail,
+        linuxdoSubject:
+          typeof decoded.subid === 'string' && decoded.subid.trim() !== ''
+            ? decoded.subid
+            : null,
         username: decoded.uname,
         avatarUrl: decoded.ava ?? null
       },

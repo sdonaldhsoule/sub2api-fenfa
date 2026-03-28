@@ -36,8 +36,8 @@ describe('requireAuth', () => {
     vi.mocked(sessionService.verifySession).mockReturnValue({
       user: {
         sub2apiUserId: 1,
+        email: 'linuxdo-subject@linuxdo-connect.invalid',
         linuxdoSubject: 'subject',
-        syntheticEmail: 'linuxdo-subject@linuxdo-connect.invalid',
         username: 'tester',
         avatarUrl: null
       },
@@ -78,8 +78,8 @@ describe('requireAuth', () => {
     vi.mocked(sessionService.verifySession).mockReturnValue({
       user: {
         sub2apiUserId: 1,
+        email: 'linuxdo-subject@linuxdo-connect.invalid',
         linuxdoSubject: 'subject',
-        syntheticEmail: 'linuxdo-subject@linuxdo-connect.invalid',
         username: 'tester',
         avatarUrl: null
       },

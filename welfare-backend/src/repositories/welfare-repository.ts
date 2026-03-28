@@ -15,8 +15,9 @@ function toNumber(value: unknown): number {
 
 export interface CreateCheckinInput {
   sub2apiUserId: number;
-  linuxdoSubject: string;
-  syntheticEmail: string;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
   checkinDate: string;
   checkinMode: CheckinMode;
   blindboxItemId?: number | null;
@@ -27,9 +28,20 @@ export interface CreateCheckinInput {
 
 export interface AdminWhitelistItem {
   id: number;
-  linuxdoSubject: string;
+  sub2apiUserId: number | null;
+  email: string;
+  username: string;
+  linuxdoSubject: string | null;
   notes: string;
   createdAt: string;
+}
+
+export interface CreateAdminWhitelistInput {
+  sub2apiUserId: number;
+  email: string;
+  username: string;
+  linuxdoSubject: string | null;
+  notes: string;
 }
 
 export interface CreateBlindboxItemInput {
@@ -207,9 +219,24 @@ export class WelfareRepository {
     return result.rowCount ? this.mapBlindboxItem(result.rows[0]) : null;
   }
 
-  async hasAdminSubject(linuxdoSubject: string): Promise<boolean> {
+  async hasAdminUserId(sub2apiUserId: number): Promise<boolean> {
     const result = await this.db.query(
-      `SELECT 1 FROM welfare_admin_whitelist WHERE linuxdo_subject = $1 LIMIT 1`,
+      `SELECT 1
+       FROM welfare_admin_whitelist
+       WHERE sub2api_user_id = $1
+       LIMIT 1`,
+      [sub2apiUserId]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async hasLegacyAdminSubject(linuxdoSubject: string): Promise<boolean> {
+    const result = await this.db.query(
+      `SELECT 1
+       FROM welfare_admin_whitelist
+       WHERE linuxdo_subject = $1
+         AND sub2api_user_id IS NULL
+       LIMIT 1`,
       [linuxdoSubject]
     );
     return (result.rowCount ?? 0) > 0;
@@ -217,34 +244,72 @@ export class WelfareRepository {
 
   async listAdminWhitelist(): Promise<AdminWhitelistItem[]> {
     const result = await this.db.query(
-      `SELECT id, linuxdo_subject, notes, created_at
+      `SELECT id,
+              sub2api_user_id,
+              sub2api_email,
+              sub2api_username,
+              linuxdo_subject,
+              notes,
+              created_at
        FROM welfare_admin_whitelist
        ORDER BY id ASC`
     );
     return result.rows.map((row) => ({
       id: Number(row.id),
-      linuxdoSubject: String(row.linuxdo_subject),
+      sub2apiUserId:
+        row.sub2api_user_id == null ? null : Number(row.sub2api_user_id),
+      email: String(row.sub2api_email ?? ''),
+      username: String(row.sub2api_username ?? ''),
+      linuxdoSubject:
+        typeof row.linuxdo_subject === 'string' && row.linuxdo_subject.trim() !== ''
+          ? String(row.linuxdo_subject)
+          : null,
       notes: String(row.notes ?? ''),
       createdAt: String(row.created_at)
     }));
   }
 
-  async addAdminWhitelist(
-    linuxdoSubject: string,
-    notes: string
-  ): Promise<AdminWhitelistItem> {
+  async addAdminWhitelist(input: CreateAdminWhitelistInput): Promise<AdminWhitelistItem> {
     const result = await this.db.query(
-      `INSERT INTO welfare_admin_whitelist (linuxdo_subject, notes)
-       VALUES ($1, $2)
-       ON CONFLICT (linuxdo_subject)
-       DO UPDATE SET notes = EXCLUDED.notes
-       RETURNING id, linuxdo_subject, notes, created_at`,
-      [linuxdoSubject, notes]
+      `INSERT INTO welfare_admin_whitelist (
+         sub2api_user_id,
+         sub2api_email,
+         sub2api_username,
+         linuxdo_subject,
+         notes
+       )
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (sub2api_user_id)
+       DO UPDATE SET
+         sub2api_email = EXCLUDED.sub2api_email,
+         sub2api_username = EXCLUDED.sub2api_username,
+         linuxdo_subject = EXCLUDED.linuxdo_subject,
+         notes = EXCLUDED.notes
+       RETURNING id,
+                 sub2api_user_id,
+                 sub2api_email,
+                 sub2api_username,
+                 linuxdo_subject,
+                 notes,
+                 created_at`,
+      [
+        input.sub2apiUserId,
+        input.email,
+        input.username,
+        input.linuxdoSubject,
+        input.notes
+      ]
     );
     const row = result.rows[0];
     return {
       id: Number(row.id),
-      linuxdoSubject: String(row.linuxdo_subject),
+      sub2apiUserId: Number(row.sub2api_user_id),
+      email: String(row.sub2api_email ?? ''),
+      username: String(row.sub2api_username ?? ''),
+      linuxdoSubject:
+        typeof row.linuxdo_subject === 'string' && row.linuxdo_subject.trim() !== ''
+          ? String(row.linuxdo_subject)
+          : null,
       notes: String(row.notes ?? ''),
       createdAt: String(row.created_at)
     };
@@ -258,16 +323,62 @@ export class WelfareRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
-  async bootstrapAdminWhitelist(subjects: string[]): Promise<void> {
+  async bootstrapLegacyAdminWhitelist(subjects: string[]): Promise<void> {
     if (subjects.length === 0) return;
     for (const subject of subjects) {
       await this.db.query(
-        `INSERT INTO welfare_admin_whitelist (linuxdo_subject, notes)
+        `INSERT INTO welfare_admin_whitelist (
+           linuxdo_subject,
+           notes
+         )
          VALUES ($1, $2)
          ON CONFLICT (linuxdo_subject) DO NOTHING`,
         [subject, 'bootstrap']
       );
     }
+  }
+
+  async bootstrapAdminWhitelist(userIds: number[]): Promise<void> {
+    if (userIds.length === 0) return;
+    for (const userId of userIds) {
+      await this.db.query(
+        `INSERT INTO welfare_admin_whitelist (
+           sub2api_user_id,
+           sub2api_email,
+           sub2api_username,
+           notes
+         )
+         VALUES ($1, '', '', 'bootstrap')
+         ON CONFLICT (sub2api_user_id) DO NOTHING`,
+        [userId]
+      );
+    }
+  }
+
+  async updateAdminWhitelistIdentity(
+    id: number,
+    input: {
+      sub2apiUserId: number;
+      email: string;
+      username: string;
+      linuxdoSubject: string | null;
+    }
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE welfare_admin_whitelist
+       SET sub2api_user_id = $2,
+           sub2api_email = $3,
+           sub2api_username = $4,
+           linuxdo_subject = $5
+       WHERE id = $1`,
+      [
+        id,
+        input.sub2apiUserId,
+        input.email,
+        input.username,
+        input.linuxdoSubject
+      ]
+    );
   }
 
   async getCheckinByDate(
@@ -299,8 +410,9 @@ export class WelfareRepository {
     const result = await this.db.query(
       `INSERT INTO welfare_checkins (
          sub2api_user_id,
+         sub2api_email,
+         sub2api_username,
          linuxdo_subject,
-         synthetic_email,
          checkin_date,
          checkin_mode,
          blindbox_item_id,
@@ -314,8 +426,9 @@ export class WelfareRepository {
        RETURNING *`,
       [
         input.sub2apiUserId,
+        input.sub2apiEmail,
+        input.sub2apiUsername,
         input.linuxdoSubject,
-        input.syntheticEmail,
         input.checkinDate,
         input.checkinMode,
         input.blindboxItemId ?? null,
@@ -425,7 +538,11 @@ export class WelfareRepository {
     }
     if (params.subject) {
       values.push(`%${params.subject}%`);
-      conditions.push(`linuxdo_subject ILIKE $${values.length}`);
+      conditions.push(
+        `(COALESCE(linuxdo_subject, '') ILIKE $${values.length}
+          OR sub2api_email ILIKE $${values.length}
+          OR sub2api_username ILIKE $${values.length})`
+      );
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -524,8 +641,12 @@ export class WelfareRepository {
     return {
       id: Number(row.id),
       sub2apiUserId: Number(row.sub2api_user_id),
-      linuxdoSubject: String(row.linuxdo_subject),
-      syntheticEmail: String(row.synthetic_email),
+      sub2apiEmail: String(row.sub2api_email ?? ''),
+      sub2apiUsername: String(row.sub2api_username ?? ''),
+      linuxdoSubject:
+        typeof row.linuxdo_subject === 'string' && row.linuxdo_subject.trim() !== ''
+          ? String(row.linuxdo_subject)
+          : null,
       checkinDate: String(row.checkin_date),
       checkinMode:
         row.checkin_mode === 'blindbox' ? 'blindbox' : 'normal',

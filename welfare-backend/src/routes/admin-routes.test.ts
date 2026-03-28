@@ -30,6 +30,9 @@ const mockWelfareRepository = vi.hoisted(() => ({
   addAdminWhitelist: vi.fn(),
   removeAdminWhitelist: vi.fn()
 }));
+const mockSub2apiClient = vi.hoisted(() => ({
+  searchAdminUsers: vi.fn()
+}));
 
 const mockRedeemService = vi.hoisted(() => ({
   listAdminRedeemCodes: vi.fn(),
@@ -43,8 +46,8 @@ vi.mock('../middleware/auth-middleware.js', () => ({
   requireAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.sessionUser = {
       sub2apiUserId: 1,
+      email: 'linuxdo-self-admin@linuxdo-connect.invalid',
       linuxdoSubject: 'self-admin',
-      syntheticEmail: 'linuxdo-self-admin@linuxdo-connect.invalid',
       username: 'tester',
       avatarUrl: null
     };
@@ -70,6 +73,10 @@ vi.mock('../services/redeem-service.js', () => ({
   ConflictError: class extends Error {},
   ForbiddenError: class extends Error {},
   NotFoundError: class extends Error {}
+}));
+
+vi.mock('../services/sub2api-client.js', () => ({
+  sub2apiClient: mockSub2apiClient
 }));
 
 async function createTestApp() {
@@ -140,12 +147,18 @@ describe('adminRouter', () => {
     mockWelfareRepository.listAdminWhitelist.mockResolvedValue([
       {
         id: 1,
+        sub2apiUserId: 1,
+        email: 'linuxdo-self-admin@linuxdo-connect.invalid',
+        username: 'tester',
         linuxdoSubject: 'self-admin',
         notes: '',
         createdAt: '2026-03-26T00:00:00.000Z'
       },
       {
         id: 2,
+        sub2apiUserId: 2,
+        email: 'other@example.com',
+        username: 'other-admin',
         linuxdoSubject: 'other-admin',
         notes: '',
         createdAt: '2026-03-26T00:00:00.000Z'
@@ -164,12 +177,18 @@ describe('adminRouter', () => {
     mockWelfareRepository.listAdminWhitelist.mockResolvedValue([
       {
         id: 1,
+        sub2apiUserId: 1,
+        email: 'linuxdo-self-admin@linuxdo-connect.invalid',
+        username: 'tester',
         linuxdoSubject: 'self-admin',
         notes: '',
         createdAt: '2026-03-26T00:00:00.000Z'
       },
       {
         id: 2,
+        sub2apiUserId: 2,
+        email: 'other@example.com',
+        username: 'other-admin',
         linuxdoSubject: 'other-admin',
         notes: '',
         createdAt: '2026-03-26T00:00:00.000Z'

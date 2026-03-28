@@ -2,12 +2,78 @@ import { createApp } from './app.js';
 import { config } from './config.js';
 import { pool } from './db.js';
 import { runMigrations } from './migrations.js';
+import { sub2apiClient } from './services/sub2api-client.js';
 import { welfareRepository } from './services/checkin-service.js';
 import { sessionMaintenanceService } from './services/session-maintenance-service.js';
+import { extractLinuxDoSubjectFromEmail, toSyntheticEmail } from './utils/oauth.js';
+
+async function backfillLegacyAdminWhitelist(): Promise<void> {
+  const whitelist = await welfareRepository.listAdminWhitelist();
+  for (const item of whitelist) {
+    if (item.sub2apiUserId || !item.linuxdoSubject) {
+      continue;
+    }
+
+    try {
+      const user = await sub2apiClient.findUserByEmail(toSyntheticEmail(item.linuxdoSubject));
+      if (!user) {
+        continue;
+      }
+
+      await welfareRepository.updateAdminWhitelistIdentity(item.id, {
+        sub2apiUserId: user.id,
+        email: user.email,
+        username: user.username || user.email,
+        linuxdoSubject: extractLinuxDoSubjectFromEmail(user.email)
+      });
+    } catch (error) {
+      console.warn(
+        `[welfare-backend] 管理员白名单回填失败: ${item.linuxdoSubject}`,
+        error instanceof Error ? error.message : error
+      );
+    }
+  }
+}
+
+async function hydrateBootstrapAdminWhitelist(): Promise<void> {
+  if (config.BOOTSTRAP_ADMIN_SUBJECTS.length > 0) {
+    await welfareRepository.bootstrapLegacyAdminWhitelist(config.BOOTSTRAP_ADMIN_SUBJECTS);
+  }
+
+  if (config.BOOTSTRAP_ADMIN_USER_IDS.length > 0) {
+    await welfareRepository.bootstrapAdminWhitelist(config.BOOTSTRAP_ADMIN_USER_IDS);
+    for (const userId of config.BOOTSTRAP_ADMIN_USER_IDS) {
+      try {
+        const user = await sub2apiClient.getAdminUserById(userId);
+        if (!user) {
+          continue;
+        }
+        const whitelist = await welfareRepository.listAdminWhitelist();
+        const target = whitelist.find((item) => item.sub2apiUserId === userId);
+        if (!target) {
+          continue;
+        }
+        await welfareRepository.updateAdminWhitelistIdentity(target.id, {
+          sub2apiUserId: user.id,
+          email: user.email,
+          username: user.username || user.email,
+          linuxdoSubject: extractLinuxDoSubjectFromEmail(user.email)
+        });
+      } catch (error) {
+        console.warn(
+          `[welfare-backend] 启动管理员白名单用户预热失败: ${userId}`,
+          error instanceof Error ? error.message : error
+        );
+      }
+    }
+  }
+
+  await backfillLegacyAdminWhitelist();
+}
 
 async function main() {
   await runMigrations(pool);
-  await welfareRepository.bootstrapAdminWhitelist(config.BOOTSTRAP_ADMIN_SUBJECTS);
+  await hydrateBootstrapAdminWhitelist();
   sessionMaintenanceService.startCleanupLoop(
     config.WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL_MS
   );

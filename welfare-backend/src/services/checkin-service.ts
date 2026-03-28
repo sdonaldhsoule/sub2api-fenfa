@@ -241,8 +241,9 @@ export class CheckinService {
 
     let pending = await this.repository.createCheckinPending({
       sub2apiUserId: user.sub2apiUserId,
+      sub2apiEmail: user.email,
+      sub2apiUsername: user.username,
       linuxdoSubject: user.linuxdoSubject,
-      syntheticEmail: user.syntheticEmail,
       checkinDate,
       checkinMode: requestedMode,
       blindboxItemId,

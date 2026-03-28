@@ -7,7 +7,8 @@ const originalEnv = { ...process.env };
 const {
   authContext,
   mockConsumeArtifact,
-  mockHasAdminSubject,
+  mockHasAdminUserId,
+  mockHasLegacyAdminSubject,
   mockIssueArtifact,
   mockRevokeToken,
   mockSessionService,
@@ -17,8 +18,8 @@ const {
   authContext: {
     user: {
       sub2apiUserId: 1,
+      email: 'linuxdo-subject@linuxdo-connect.invalid',
       linuxdoSubject: 'subject',
-      syntheticEmail: 'linuxdo-subject@linuxdo-connect.invalid',
       username: 'tester',
       avatarUrl: null
     },
@@ -26,14 +27,16 @@ const {
     expiresAtMs: 1_900_000_000_000
   },
   mockConsumeArtifact: vi.fn(),
-  mockHasAdminSubject: vi.fn(),
+  mockHasAdminUserId: vi.fn(),
+  mockHasLegacyAdminSubject: vi.fn(),
   mockIssueArtifact: vi.fn(),
   mockRevokeToken: vi.fn(),
   mockSessionService: {
     sign: vi.fn()
   },
   mockSub2apiClient: {
-    findUserBySyntheticEmail: vi.fn()
+    findUserByEmail: vi.fn(),
+    getCurrentUser: vi.fn()
   },
   mockLinuxDoOAuthService: {
     exchangeCode: vi.fn(),
@@ -52,7 +55,8 @@ vi.mock('../middleware/auth-middleware.js', () => ({
 
 vi.mock('../services/checkin-service.js', () => ({
   welfareRepository: {
-    hasAdminSubject: mockHasAdminSubject
+    hasAdminUserId: mockHasAdminUserId,
+    hasLegacyAdminSubject: mockHasLegacyAdminSubject
   }
 }));
 
@@ -104,6 +108,7 @@ function applyBaseEnv() {
     DEFAULT_CHECKIN_ENABLED: 'true',
     DEFAULT_DAILY_REWARD: '10',
     DEFAULT_TIMEZONE: 'Asia/Shanghai',
+    BOOTSTRAP_ADMIN_USER_IDS: '',
     BOOTSTRAP_ADMIN_SUBJECTS: ''
   };
 }
@@ -128,11 +133,13 @@ describe('authRouter', () => {
     applyBaseEnv();
     vi.resetModules();
     mockConsumeArtifact.mockReset();
-    mockHasAdminSubject.mockReset();
+    mockHasAdminUserId.mockReset();
+    mockHasLegacyAdminSubject.mockReset();
     mockIssueArtifact.mockReset();
     mockRevokeToken.mockReset();
     mockSessionService.sign.mockReset();
-    mockSub2apiClient.findUserBySyntheticEmail.mockReset();
+    mockSub2apiClient.findUserByEmail.mockReset();
+    mockSub2apiClient.getCurrentUser.mockReset();
     mockLinuxDoOAuthService.exchangeCode.mockReset();
     mockLinuxDoOAuthService.fetchUserInfo.mockReset();
 
@@ -228,7 +235,8 @@ describe('authRouter', () => {
   });
 
   it('GET /me 返回当前登录用户与管理员标记', async () => {
-    mockHasAdminSubject.mockResolvedValue(true);
+    mockHasAdminUserId.mockResolvedValue(true);
+    mockHasLegacyAdminSubject.mockResolvedValue(false);
 
     const app = await createTestApp();
     const response = await request(app).get('/api/auth/me');
@@ -237,6 +245,39 @@ describe('authRouter', () => {
     expect(response.headers['cache-control']).toBe('no-store');
     expect(response.body.data.is_admin).toBe(true);
     expect(response.body.data.linuxdo_subject).toBe('subject');
+    expect(response.body.data.email).toBe('linuxdo-subject@linuxdo-connect.invalid');
+  });
+
+  it('POST /sub2api/exchange 会用 sub2api 当前登录用户换取福利站 token', async () => {
+    mockSub2apiClient.getCurrentUser.mockResolvedValue({
+      id: 7,
+      email: 'normal-user@example.com',
+      username: 'normal-user'
+    });
+    mockSessionService.sign.mockReturnValue('bridge-session-token');
+
+    const app = await createTestApp();
+    const response = await request(app)
+      .post('/api/auth/sub2api/exchange')
+      .send({
+        access_token: 'sub2api-token',
+        user_id: 7,
+        redirect: '/checkin'
+      });
+
+    expect(response.status).toBe(200);
+    expect(mockSub2apiClient.getCurrentUser).toHaveBeenCalledWith('sub2api-token');
+    expect(mockSessionService.sign).toHaveBeenCalledWith({
+      sub2apiUserId: 7,
+      email: 'normal-user@example.com',
+      linuxdoSubject: null,
+      username: 'normal-user',
+      avatarUrl: null
+    });
+    expect(response.body.data).toEqual({
+      session_token: 'bridge-session-token',
+      redirect: '/checkin'
+    });
   });
 
   it('POST /logout 会撤销当前 token', async () => {

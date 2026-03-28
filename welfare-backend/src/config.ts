@@ -113,6 +113,7 @@ const configSchema = z.object({
     .string()
     .default('Asia/Shanghai')
     .refine(isValidTimezone, 'DEFAULT_TIMEZONE 必须是合法时区'),
+  BOOTSTRAP_ADMIN_USER_IDS: z.string().default(''),
   BOOTSTRAP_ADMIN_SUBJECTS: z.string().default('')
 });
 
@@ -160,12 +161,25 @@ const configuredCorsOrigins = raw.WELFARE_CORS_ORIGINS.split(',')
   .map((item) => item.trim())
   .filter(Boolean)
   .map((item) => normalizeOrigin(item, 'WELFARE_CORS_ORIGINS'));
+const bootstrapAdminUserIds = raw.BOOTSTRAP_ADMIN_USER_IDS.split(',')
+  .map((item) => item.trim())
+  .filter(Boolean)
+  .map((item) => Number(item));
 const bootstrapAdminSubjects = raw.BOOTSTRAP_ADMIN_SUBJECTS.split(',')
   .map((item) => item.trim())
   .filter(Boolean);
+const invalidBootstrapUserId = bootstrapAdminUserIds.find(
+  (item) => !Number.isInteger(item) || item <= 0
+);
 const invalidBootstrapSubject = bootstrapAdminSubjects.find(
   (item) => !isSafeLinuxDoSubject(item)
 );
+
+if (invalidBootstrapUserId) {
+  throw new Error(
+    `环境变量校验失败：BOOTSTRAP_ADMIN_USER_IDS 包含非法用户 ID: ${invalidBootstrapUserId}`
+  );
+}
 
 if (invalidBootstrapSubject) {
   throw new Error(
@@ -183,6 +197,7 @@ export const config = {
   WELFARE_RATE_LIMIT_CHECKIN_WINDOW_MS: checkinRateLimitWindowMs,
   WELFARE_RATE_LIMIT_REDEEM_WINDOW_MS: redeemRateLimitWindowMs,
   WELFARE_RATE_LIMIT_ADMIN_MUTATION_WINDOW_MS: adminMutationRateLimitWindowMs,
+  BOOTSTRAP_ADMIN_USER_IDS: bootstrapAdminUserIds,
   BOOTSTRAP_ADMIN_SUBJECTS: bootstrapAdminSubjects,
   SUB2API_BASE_URL: raw.SUB2API_BASE_URL.replace(/\/+$/, '')
 };

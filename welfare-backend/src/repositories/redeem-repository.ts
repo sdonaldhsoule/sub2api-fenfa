@@ -29,8 +29,9 @@ export interface UpdateRedeemCodeInput {
 export interface CreateRedeemClaimInput {
   redeemCodeId: number;
   sub2apiUserId: number;
-  linuxdoSubject: string;
-  syntheticEmail: string;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
   redeemCode: string;
   redeemTitle: string;
   rewardBalance: number;
@@ -213,8 +214,9 @@ export class RedeemRepository {
       `INSERT INTO welfare_redeem_claims (
          redeem_code_id,
          sub2api_user_id,
+         sub2api_email,
+         sub2api_username,
          linuxdo_subject,
-         synthetic_email,
          redeem_code,
          redeem_title,
          reward_balance,
@@ -227,8 +229,9 @@ export class RedeemRepository {
       [
         input.redeemCodeId,
         input.sub2apiUserId,
+        input.sub2apiEmail,
+        input.sub2apiUsername,
         input.linuxdoSubject,
-        input.syntheticEmail,
         input.redeemCode,
         input.redeemTitle,
         input.rewardBalance,
@@ -328,7 +331,11 @@ export class RedeemRepository {
     }
     if (params.subject) {
       values.push(`%${params.subject}%`);
-      conditions.push(`linuxdo_subject ILIKE $${values.length}`);
+      conditions.push(
+        `(COALESCE(linuxdo_subject, '') ILIKE $${values.length}
+          OR sub2api_email ILIKE $${values.length}
+          OR sub2api_username ILIKE $${values.length})`
+      );
     }
     if (params.code) {
       values.push(`%${params.code}%`);
@@ -399,8 +406,12 @@ export class RedeemRepository {
       id: Number(row.id),
       redeemCodeId: Number(row.redeem_code_id),
       sub2apiUserId: Number(row.sub2api_user_id),
-      linuxdoSubject: String(row.linuxdo_subject),
-      syntheticEmail: String(row.synthetic_email),
+      sub2apiEmail: String(row.sub2api_email ?? ''),
+      sub2apiUsername: String(row.sub2api_username ?? ''),
+      linuxdoSubject:
+        typeof row.linuxdo_subject === 'string' && row.linuxdo_subject.trim() !== ''
+          ? String(row.linuxdo_subject)
+          : null,
       redeemCode: String(row.redeem_code),
       redeemTitle: String(row.redeem_title),
       rewardBalance: toNumber(row.reward_balance),

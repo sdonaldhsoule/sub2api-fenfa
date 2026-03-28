@@ -51,8 +51,9 @@ function createNormalFailedRecord(): CheckinRecord {
   return {
     id: 7,
     sub2apiUserId: 42,
+    sub2apiEmail: 'linuxdo-user@linuxdo-connect.invalid',
+    sub2apiUsername: 'linuxdo-user',
     linuxdoSubject: 'linuxdo-user',
-    syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
     checkinDate: '2026-03-06',
     checkinMode: 'normal',
     blindboxItemId: null,
@@ -71,8 +72,9 @@ function createBlindboxFailedRecord(): CheckinRecord {
   return {
     id: 8,
     sub2apiUserId: 42,
+    sub2apiEmail: 'linuxdo-user@linuxdo-connect.invalid',
+    sub2apiUsername: 'linuxdo-user',
     linuxdoSubject: 'linuxdo-user',
-    syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
     checkinDate: '2026-03-06',
     checkinMode: 'blindbox',
     blindboxItemId: 3,
@@ -228,8 +230,8 @@ describe('checkin service', () => {
 
     const result = await service.checkin({
       sub2apiUserId: failedRecord.sub2apiUserId,
+      email: failedRecord.sub2apiEmail,
       linuxdoSubject: failedRecord.linuxdoSubject,
-      syntheticEmail: failedRecord.syntheticEmail,
       username: 'tester',
       avatarUrl: null
     });
@@ -276,8 +278,8 @@ describe('checkin service', () => {
 
     const result = await service.checkin({
       sub2apiUserId: stalePending.sub2apiUserId,
+      email: stalePending.sub2apiEmail,
       linuxdoSubject: stalePending.linuxdoSubject,
-      syntheticEmail: stalePending.syntheticEmail,
       username: 'tester',
       avatarUrl: null
     });
@@ -310,8 +312,8 @@ describe('checkin service', () => {
     await expect(
       service.checkin({
         sub2apiUserId: freshPending.sub2apiUserId,
+        email: freshPending.sub2apiEmail,
         linuxdoSubject: freshPending.linuxdoSubject,
-        syntheticEmail: freshPending.syntheticEmail,
         username: 'tester',
         avatarUrl: null
       })
@@ -336,8 +338,9 @@ describe('checkin service', () => {
     repository.createCheckinPending.mockResolvedValue({
       id: 11,
       sub2apiUserId: 42,
+      sub2apiEmail: 'linuxdo-user@linuxdo-connect.invalid',
+      sub2apiUsername: 'linuxdo-user',
       linuxdoSubject: 'linuxdo-user',
-      syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
       checkinDate: '2026-03-06',
       checkinMode: 'blindbox',
       blindboxItemId: 3,
@@ -358,8 +361,8 @@ describe('checkin service', () => {
 
     const result = await service.checkBlindbox({
       sub2apiUserId: 42,
+      email: 'linuxdo-user@linuxdo-connect.invalid',
       linuxdoSubject: 'linuxdo-user',
-      syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
       username: 'tester',
       avatarUrl: null
     });
@@ -401,8 +404,8 @@ describe('checkin service', () => {
     await expect(
       service.checkBlindbox({
         sub2apiUserId: 42,
+        email: 'linuxdo-user@linuxdo-connect.invalid',
         linuxdoSubject: 'linuxdo-user',
-        syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
         username: 'tester',
         avatarUrl: null
       })
@@ -433,8 +436,8 @@ describe('checkin service', () => {
 
     const result = await service.checkBlindbox({
       sub2apiUserId: 42,
+      email: 'linuxdo-user@linuxdo-connect.invalid',
       linuxdoSubject: 'linuxdo-user',
-      syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
       username: 'tester',
       avatarUrl: null
     });
@@ -462,8 +465,8 @@ describe('checkin service', () => {
     await expect(
       service.checkBlindbox({
         sub2apiUserId: 42,
+        email: 'linuxdo-user@linuxdo-connect.invalid',
         linuxdoSubject: 'linuxdo-user',
-        syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
         username: 'tester',
         avatarUrl: null
       })

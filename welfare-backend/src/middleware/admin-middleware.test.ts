@@ -5,7 +5,8 @@ import { welfareRepository } from '../services/checkin-service.js';
 
 vi.mock('../services/checkin-service.js', () => ({
   welfareRepository: {
-    hasAdminSubject: vi.fn()
+    hasAdminUserId: vi.fn(),
+    hasLegacyAdminSubject: vi.fn()
   }
 }));
 
@@ -21,20 +22,22 @@ describe('requireAdmin', () => {
 
   beforeEach(() => {
     next.mockReset();
-    vi.mocked(welfareRepository.hasAdminSubject).mockReset();
+    vi.mocked(welfareRepository.hasAdminUserId).mockReset();
+    vi.mocked(welfareRepository.hasLegacyAdminSubject).mockReset();
   });
 
   it('白名单命中时进入下一个处理器', async () => {
-    vi.mocked(welfareRepository.hasAdminSubject).mockResolvedValue(true);
+    vi.mocked(welfareRepository.hasAdminUserId).mockResolvedValue(true);
+    vi.mocked(welfareRepository.hasLegacyAdminSubject).mockResolvedValue(false);
     const req = {
       sessionUser: {
         sub2apiUserId: 1,
+        email: 'linuxdo-subject@linuxdo-connect.invalid',
         linuxdoSubject: 'subject',
-        syntheticEmail: 'linuxdo-subject@linuxdo-connect.invalid',
         username: 'tester',
         avatarUrl: null
       }
-    } as Request;
+    } as unknown as Request;
     const res = createResponse();
 
     requireAdmin(req, res, next);
@@ -42,21 +45,22 @@ describe('requireAdmin', () => {
       expect(next).toHaveBeenCalledTimes(1);
     });
 
-    expect(welfareRepository.hasAdminSubject).toHaveBeenCalledWith('subject');
+    expect(welfareRepository.hasAdminUserId).toHaveBeenCalledWith(1);
+    expect(welfareRepository.hasLegacyAdminSubject).toHaveBeenCalledWith('subject');
   });
 
   it('数据库异常时会把错误交给 next，而不是产生未处理拒绝', async () => {
     const error = new Error('db down');
-    vi.mocked(welfareRepository.hasAdminSubject).mockRejectedValue(error);
+    vi.mocked(welfareRepository.hasAdminUserId).mockRejectedValue(error);
     const req = {
       sessionUser: {
         sub2apiUserId: 1,
+        email: 'linuxdo-subject@linuxdo-connect.invalid',
         linuxdoSubject: 'subject',
-        syntheticEmail: 'linuxdo-subject@linuxdo-connect.invalid',
         username: 'tester',
         avatarUrl: null
       }
-    } as Request;
+    } as unknown as Request;
     const res = createResponse();
 
     requireAdmin(req, res, next);

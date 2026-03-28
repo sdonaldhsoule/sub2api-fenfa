@@ -99,3 +99,14 @@ export function toSyntheticEmail(subject: string): string {
 export function isSafeLinuxDoSubject(subject: string): boolean {
   return /^[a-zA-Z0-9_-]{1,64}$/.test(subject);
 }
+
+export function extractLinuxDoSubjectFromEmail(email: string): string | null {
+  const normalized = email.trim().toLowerCase();
+  const match = normalized.match(/^linuxdo-([a-z0-9_-]{1,64})@linuxdo-connect\.invalid$/i);
+  if (!match) {
+    return null;
+  }
+
+  const subject = match[1] ?? '';
+  return isSafeLinuxDoSubject(subject) ? subject : null;
+}

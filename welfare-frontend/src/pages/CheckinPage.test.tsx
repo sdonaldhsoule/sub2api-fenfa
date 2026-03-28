@@ -32,8 +32,8 @@ describe('CheckinPage', () => {
     mockUseAuth.mockReturnValue({
       user: {
         sub2api_user_id: 7,
+        email: 'linuxdo-subject@linuxdo-connect.invalid',
         linuxdo_subject: 'subject',
-        synthetic_email: 'linuxdo-subject@linuxdo-connect.invalid',
         username: 'tester',
         avatar_url: null,
         is_admin: true

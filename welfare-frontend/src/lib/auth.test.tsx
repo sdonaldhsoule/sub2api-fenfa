@@ -85,8 +85,8 @@ describe('AuthProvider', () => {
       )
       .mockResolvedValueOnce({
         sub2api_user_id: 1,
+        email: 'fresh-user@linuxdo-connect.invalid',
         linuxdo_subject: 'fresh-user',
-        synthetic_email: 'fresh-user@linuxdo-connect.invalid',
         username: 'fresh-user',
         avatar_url: null,
         is_admin: false
@@ -126,8 +126,8 @@ describe('AuthProvider', () => {
     window.localStorage.setItem(SESSION_TOKEN_STORAGE_KEY, 'live-token');
     getMeMock.mockResolvedValue({
       sub2api_user_id: 1,
+      email: 'live-user@linuxdo-connect.invalid',
       linuxdo_subject: 'live-user',
-      synthetic_email: 'live-user@linuxdo-connect.invalid',
       username: 'live-user',
       avatar_url: null,
       is_admin: false

@@ -69,8 +69,9 @@ function createFailedClaim(): RedeemClaim {
     id: 9,
     redeemCodeId: 3,
     sub2apiUserId: 42,
+    sub2apiEmail: 'linuxdo-user@linuxdo-connect.invalid',
+    sub2apiUsername: 'linuxdo-user',
     linuxdoSubject: 'linuxdo-user',
-    syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
     redeemCode: 'WELFARE100',
     redeemTitle: '福利100刀兑换',
     rewardBalance: 100,
@@ -120,8 +121,8 @@ describe('redeem service', () => {
     const result = await service.redeem(
       {
         sub2apiUserId: 42,
+        email: 'linuxdo-user@linuxdo-connect.invalid',
         linuxdoSubject: 'linuxdo-user',
-        syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
         username: 'tester',
         avatarUrl: null
       },
@@ -172,8 +173,8 @@ describe('redeem service', () => {
       service.redeem(
         {
           sub2apiUserId: 42,
+          email: 'linuxdo-user@linuxdo-connect.invalid',
           linuxdoSubject: 'linuxdo-user',
-          syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
           username: 'tester',
           avatarUrl: null
         },
@@ -194,8 +195,8 @@ describe('redeem service', () => {
       service.redeem(
         {
           sub2apiUserId: 43,
+          email: 'linuxdo-user-2@linuxdo-connect.invalid',
           linuxdoSubject: 'linuxdo-user-2',
-          syntheticEmail: 'linuxdo-user-2@linuxdo-connect.invalid',
           username: 'tester2',
           avatarUrl: null
         },
@@ -215,8 +216,8 @@ describe('redeem service', () => {
       service.redeem(
         {
           sub2apiUserId: 43,
+          email: 'linuxdo-user-2@linuxdo-connect.invalid',
           linuxdoSubject: 'linuxdo-user-2',
-          syntheticEmail: 'linuxdo-user-2@linuxdo-connect.invalid',
           username: 'tester2',
           avatarUrl: null
         },
@@ -232,8 +233,8 @@ describe('redeem service', () => {
       service.redeem(
         {
           sub2apiUserId: 43,
+          email: 'linuxdo-user-2@linuxdo-connect.invalid',
           linuxdoSubject: 'linuxdo-user-2',
-          syntheticEmail: 'linuxdo-user-2@linuxdo-connect.invalid',
           username: 'tester2',
           avatarUrl: null
         },
@@ -263,8 +264,8 @@ describe('redeem service', () => {
     const result = await service.redeem(
       {
         sub2apiUserId: 42,
+        email: 'linuxdo-user@linuxdo-connect.invalid',
         linuxdoSubject: 'linuxdo-user',
-        syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
         username: 'tester',
         avatarUrl: null
       },
@@ -297,8 +298,8 @@ describe('redeem service', () => {
       service.redeem(
         {
           sub2apiUserId: 42,
+          email: 'linuxdo-user@linuxdo-connect.invalid',
           linuxdoSubject: 'linuxdo-user',
-          syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
           username: 'tester',
           avatarUrl: null
         },
@@ -338,8 +339,8 @@ describe('redeem service', () => {
     const result = await service.redeem(
       {
         sub2apiUserId: 42,
+        email: 'linuxdo-user@linuxdo-connect.invalid',
         linuxdoSubject: 'linuxdo-user',
-        syntheticEmail: 'linuxdo-user@linuxdo-connect.invalid',
         username: 'tester',
         avatarUrl: null
       },

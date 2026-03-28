@@ -16,9 +16,14 @@ export function requireAdmin(
     return;
   }
 
-  void welfareRepository
-    .hasAdminSubject(sessionUser.linuxdoSubject)
-    .then((isAdmin) => {
+  void Promise.all([
+    welfareRepository.hasAdminUserId(sessionUser.sub2apiUserId),
+    sessionUser.linuxdoSubject
+      ? welfareRepository.hasLegacyAdminSubject(sessionUser.linuxdoSubject)
+      : Promise.resolve(false)
+  ])
+    .then(([isAdminByUserId, isAdminByLegacySubject]) => {
+      const isAdmin = isAdminByUserId || isAdminByLegacySubject;
       if (!isAdmin) {
         res.status(403).json({
           code: 403,
@@ -32,4 +37,3 @@ export function requireAdmin(
     })
     .catch(next);
 }
-

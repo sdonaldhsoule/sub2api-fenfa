@@ -28,8 +28,8 @@ describe('api request', () => {
         message: 'success',
         data: {
           sub2api_user_id: 1,
+          email: 'linuxdo-subject@linuxdo-connect.invalid',
           linuxdo_subject: 'subject',
-          synthetic_email: 'linuxdo-subject@linuxdo-connect.invalid',
           username: 'tester',
           avatar_url: null,
           is_admin: false

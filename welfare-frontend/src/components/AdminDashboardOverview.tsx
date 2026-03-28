@@ -21,6 +21,18 @@ function renderGrantTag(status: 'success' | 'pending' | 'failed') {
   return <span className={`status-tag ${status}`}>{label}</span>;
 }
 
+function getUserIdentity(item: {
+  username?: string;
+  email?: string;
+  linuxdoSubject?: string | null;
+}) {
+  return {
+    title: item.username || item.email || '未知用户',
+    subtitle: item.email || '无邮箱',
+    linuxdo: item.linuxdoSubject ?? null
+  };
+}
+
 function isExpiringSoon(value: string | null | undefined): boolean {
   if (!value) {
     return false;
@@ -248,15 +260,22 @@ export function AdminDashboardOverview({
           </div>
           <div className="admin-mini-list">
             {failedCheckins.length === 0 && <div className="empty-state">当前没有失败签到。</div>}
-            {failedCheckins.map((item) => (
-              <div key={item.id} className="admin-mini-item">
-                <div>
-                  <strong>{item.linuxdoSubject}</strong>
-                  <span>{formatAdminBusinessDate(item.checkinDate)}</span>
+            {failedCheckins.map((item) => {
+              const identity = getUserIdentity({
+                username: item.sub2apiUsername,
+                email: item.sub2apiEmail,
+                linuxdoSubject: item.linuxdoSubject
+              });
+              return (
+                <div key={item.id} className="admin-mini-item">
+                  <div>
+                    <strong>{identity.title}</strong>
+                    <span>{formatAdminBusinessDate(item.checkinDate)}</span>
+                  </div>
+                  <div className="admin-mini-item-tail">{renderGrantTag(item.grantStatus)}</div>
                 </div>
-                <div className="admin-mini-item-tail">{renderGrantTag(item.grantStatus)}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -270,15 +289,22 @@ export function AdminDashboardOverview({
           </div>
           <div className="admin-mini-list">
             {failedRedeemClaims.length === 0 && <div className="empty-state">当前没有失败兑换。</div>}
-            {failedRedeemClaims.map((item) => (
-              <div key={item.id} className="admin-mini-item">
-                <div>
-                  <strong>{item.redeemCode}</strong>
-                  <span>{item.linuxdoSubject}</span>
+            {failedRedeemClaims.map((item) => {
+              const identity = getUserIdentity({
+                username: item.sub2apiUsername,
+                email: item.sub2apiEmail,
+                linuxdoSubject: item.linuxdoSubject
+              });
+              return (
+                <div key={item.id} className="admin-mini-item">
+                  <div>
+                    <strong>{item.redeemCode}</strong>
+                    <span>{identity.title}</span>
+                  </div>
+                  <div className="admin-mini-item-tail">{renderGrantTag(item.grantStatus)}</div>
                 </div>
-                <div className="admin-mini-item-tail">{renderGrantTag(item.grantStatus)}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 

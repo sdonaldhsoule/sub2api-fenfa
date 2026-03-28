@@ -16,6 +16,7 @@ import type {
   AdminRedeemClaimItem,
   AdminRedeemCodeItem,
   AdminSettings,
+  AdminUserSearchItem,
   DailyStats,
   WhitelistItem
 } from '../types';
@@ -91,8 +92,10 @@ export function AdminPage() {
   const [checkinFilters, setCheckinFilters] = useState<AdminCheckinQuery>(defaultCheckinFilters);
   const [checkinFilterForm, setCheckinFilterForm] = useState(defaultCheckinFilterForm);
   const [whitelist, setWhitelist] = useState<WhitelistItem[]>([]);
-  const [newSubject, setNewSubject] = useState('');
+  const [adminSearchQuery, setAdminSearchQuery] = useState('');
   const [newNotes, setNewNotes] = useState('');
+  const [adminSearchResults, setAdminSearchResults] = useState<AdminUserSearchItem[]>([]);
+  const [adminSearchLoading, setAdminSearchLoading] = useState(false);
   const [overviewRedeemCodes, setOverviewRedeemCodes] = useState<AdminRedeemCodeItem[]>([]);
   const [overviewFailedCheckins, setOverviewFailedCheckins] = useState<AdminCheckinItem[]>([]);
   const [overviewFailedCheckinsTotal, setOverviewFailedCheckinsTotal] = useState(0);
@@ -222,19 +225,47 @@ export function AdminPage() {
     }
   }
 
-  async function addWhitelist() {
-    if (!newSubject.trim()) return;
+  async function searchAdminUsers() {
+    setError('');
+    setMessage('');
+    if (!adminSearchQuery.trim()) {
+      setAdminSearchResults([]);
+      setError('请输入用户名或邮箱再搜索');
+      return;
+    }
+
+    setAdminSearchLoading(true);
+    try {
+      const results = await api.searchAdminSub2apiUsers(adminSearchQuery.trim());
+      setAdminSearchResults(results);
+      setMessage(results.length > 0 ? `已找到 ${results.length} 个候选用户` : '未找到匹配用户');
+    } catch (err) {
+      if (isUnauthorizedError(err)) {
+        await redirectToLogin();
+        return;
+      }
+      setError(err instanceof Error ? err.message : '搜索失败');
+    } finally {
+      setAdminSearchLoading(false);
+    }
+  }
+
+  async function addWhitelist(targetUser: AdminUserSearchItem) {
     setError('');
     setMessage('');
     try {
       const created = await api.addWhitelist({
-        linuxdo_subject: newSubject.trim(),
+        sub2api_user_id: targetUser.sub2api_user_id,
+        email: targetUser.email,
+        username: targetUser.username,
+        linuxdo_subject: targetUser.linuxdo_subject,
         notes: newNotes.trim() || undefined
       });
-      setNewSubject('');
+      setWhitelist((current) =>
+        [...current.filter((item) => item.id !== created.id), created].sort((a, b) => a.id - b.id)
+      );
       setNewNotes('');
-      setWhitelist((current) => [...current.filter((item) => item.id !== created.id), created].sort((a, b) => a.id - b.id));
-      setMessage('已添加管理员白名单');
+      setMessage(`已添加管理员：${created.username || created.email}`);
     } catch (err) {
       if (isUnauthorizedError(err)) {
         await redirectToLogin();
@@ -291,7 +322,8 @@ export function AdminPage() {
         refreshDashboardSnapshot()
       ]);
       setStats(statsResp);
-      setMessage(`补发成功：${result.item.linuxdoSubject} / ${result.item.checkinDate}${result.new_balance !== null ? `，当前余额 ${result.new_balance}` : ''}`);
+      const identity = result.item.sub2apiUsername || result.item.sub2apiEmail;
+      setMessage(`补发成功：${identity} / ${result.item.checkinDate}${result.new_balance !== null ? `，当前余额 ${result.new_balance}` : ''}`);
     } catch (err) {
       if (isUnauthorizedError(err)) {
         await redirectToLogin();
@@ -454,6 +486,7 @@ export function AdminPage() {
                 {user.avatar_url && <img className="user-avatar user-avatar-sm" src={user.avatar_url} alt={user.username} />}
                 <div className="stack">
                   <strong>{user.username}</strong>
+                  <span className="muted" style={{ fontSize: 12 }}>{user.email}</span>
                   <span className="muted" style={{ fontSize: 12 }}>sub2api #{user.sub2api_user_id}</span>
                 </div>
               </div>
@@ -586,12 +619,15 @@ export function AdminPage() {
           {activeSection === 'whitelist' && (
             <AdminWhitelistPanel
               userName={user.username}
-              currentSubject={user.linuxdo_subject}
+              currentUserId={user.sub2api_user_id}
               whitelist={whitelist}
-              newSubject={newSubject}
+              searchQuery={adminSearchQuery}
               newNotes={newNotes}
-              onSubjectChange={setNewSubject}
+              searchResults={adminSearchResults}
+              searching={adminSearchLoading}
+              onSearchQueryChange={setAdminSearchQuery}
               onNotesChange={setNewNotes}
+              onSearch={searchAdminUsers}
               onAdd={addWhitelist}
               onRemove={removeWhitelist}
             />
