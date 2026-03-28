@@ -348,8 +348,12 @@ export class WelfareRepository {
            sub2api_username,
            notes
          )
-         VALUES ($1, '', '', 'bootstrap')
-         ON CONFLICT (sub2api_user_id) DO NOTHING`,
+         SELECT $1, '', '', 'bootstrap'
+         WHERE NOT EXISTS (
+           SELECT 1
+           FROM welfare_admin_whitelist
+           WHERE sub2api_user_id = $1
+         )`,
         [userId]
       );
     }
