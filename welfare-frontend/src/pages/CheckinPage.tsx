@@ -520,17 +520,18 @@ export function CheckinPage() {
         animate="animate"
         className="checkin-layout"
       >
-        <motion.header variants={staggerItem} className="checkin-header fortune-header">
+        <motion.header variants={staggerItem} className="checkin-header fortune-header checkin-command-header">
           <div className="user-info">
             {user?.avatar_url && (
               <img className="user-avatar" src={user.avatar_url} alt={user.username} />
             )}
             <div>
-              <h1 className="hero-title" style={{ fontSize: 28, marginBottom: 4 }}>
-                欢迎回来，<span className="text-gradient">{user?.username}</span>
+              <span className="fortune-inline-kicker">check station</span>
+              <h1 className="hero-title fortune-inline-title">
+                {user?.username}
               </h1>
-              <p className="muted" style={{ margin: 0 }}>
-                sub2api #{user?.sub2api_user_id} · {status?.checkin_date} ({status?.timezone})
+              <p className="muted fortune-inline-meta">
+                sub2api #{user?.sub2api_user_id} · {status?.checkin_date} · {status?.timezone}
               </p>
             </div>
           </div>
@@ -551,21 +552,34 @@ export function CheckinPage() {
           <div className="fortune-shell-glow fortune-shell-glow-b" />
 
           <div className="fortune-shell-head">
-            <div>
+            <div className="fortune-headline-stack">
               <span className="eyebrow fortune-eyebrow">Daily Ritual</span>
-              <h2 className="fortune-title">今天想走哪条领取路径？</h2>
+              <h2 className="fortune-title">DAILY CHECK-IN</h2>
+              <p className="fortune-title-shadow">MODE SELECTOR</p>
               <p className="fortune-copy">
                 普通签到稳稳到账，惊喜签到搏一把高奖励。每天只会生成一条签到记录，请在两种模式中做出选择。
               </p>
             </div>
-            <div className="fortune-meta-card">
-              <span className="fortune-meta-label">今日固定奖励</span>
-              <strong>{status?.daily_reward_balance.toFixed(2)}</strong>
-              <small>
-                {status?.selected_mode
-                  ? `已选择：${getModeLabel(status.selected_mode)}`
-                  : '尚未选择今日签到模式'}
-              </small>
+            <div className="fortune-meta-grid">
+              <div className="fortune-meta-card">
+                <span className="fortune-meta-label">固定奖励</span>
+                <strong>+{status?.daily_reward_balance.toFixed(2)}</strong>
+                <small>普通签到直接到账</small>
+              </div>
+              <div className="fortune-meta-card">
+                <span className="fortune-meta-label">今日状态</span>
+                <strong>{status?.selected_mode ? getModeLabel(status.selected_mode) : '待选择'}</strong>
+                <small>
+                  {status?.selected_mode
+                    ? `当前链路：${status.grant_status ?? '待处理'}`
+                    : '尚未选择签到模式'}
+                </small>
+              </div>
+              <div className="fortune-meta-card">
+                <span className="fortune-meta-label">业务日</span>
+                <strong>{status?.checkin_date}</strong>
+                <small>{status?.timezone}</small>
+              </div>
             </div>
           </div>
 
@@ -656,7 +670,7 @@ export function CheckinPage() {
               >
                 <div className="fortune-panel-left blindbox-surface">
                   <span className="fortune-panel-kicker">surprise lane</span>
-                  <div className="fortune-cylinder-wrapper" style={{ transform: 'scale(0.55)', transformOrigin: 'top center', marginBottom: -110, marginTop: 10 }}>
+                  <div className="fortune-cylinder-wrapper blindbox-inline-symbol">
                     <div className="fortune-sticks-container">
                       {[...Array(5)].map((_, i) => (
                         <div key={i} className="fortune-stick" />

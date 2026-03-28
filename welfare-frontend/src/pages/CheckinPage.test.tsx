@@ -98,7 +98,7 @@ describe('CheckinPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText(/欢迎回来/i)).toBeInTheDocument();
+    expect(await screen.findByText(/DAILY CHECK-IN/i)).toBeInTheDocument();
     expect(screen.getByText('2026-03-24')).toBeInTheDocument();
     expect(screen.getByText('WELCOME100')).toBeInTheDocument();
     expect(screen.getByText('惊喜签到')).toBeInTheDocument();

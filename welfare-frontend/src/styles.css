@@ -1,5 +1,5 @@
 /* ─── Modern SaaS / Grid 设计系统 ─── */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&family=Manrope:wght@600;700;800&display=swap');
 
 :root {
   color-scheme: light;
@@ -2715,6 +2715,404 @@ h3 {
   }
 
   .history-item-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Check.linux.do 风格化重构：签到页 ─── */
+.fortune-page {
+  width: min(1240px, 100%);
+  padding-top: 28px;
+}
+
+.checkin-command-header {
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.fortune-inline-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #6b7280;
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.fortune-inline-title {
+  margin-bottom: 2px !important;
+  font-size: clamp(24px, 3vw, 34px) !important;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+.fortune-inline-meta {
+  font-size: 13px;
+  color: #6b7280 !important;
+}
+
+.fortune-shell {
+  padding: 30px;
+  border-radius: 28px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background:
+    linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.98));
+  background-size: 40px 40px, 40px 40px, auto;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.05);
+}
+
+.fortune-shell-glow {
+  display: none;
+}
+
+.fortune-shell-head {
+  align-items: start;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.fortune-headline-stack {
+  max-width: 760px;
+}
+
+.fortune-eyebrow {
+  margin-bottom: 14px;
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  letter-spacing: 0.2em;
+}
+
+.fortune-title {
+  margin: 0;
+  font-family: 'Manrope', var(--font-display);
+  font-size: clamp(54px, 8vw, 96px);
+  line-height: 0.95;
+  font-weight: 800;
+  letter-spacing: -0.08em;
+  color: #0f172a;
+}
+
+.fortune-title-shadow {
+  margin: 0;
+  color: rgba(15, 23, 42, 0.45);
+  font-family: 'Manrope', var(--font-display);
+  font-size: clamp(42px, 6vw, 84px);
+  line-height: 0.94;
+  font-weight: 800;
+  letter-spacing: -0.08em;
+}
+
+.fortune-copy {
+  max-width: 740px;
+  margin-top: 18px;
+  font-size: 16px;
+  color: #6b7280;
+}
+
+.fortune-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fortune-meta-card {
+  min-height: 124px;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.fortune-meta-card strong {
+  font-family: 'Manrope', var(--font-display);
+  font-size: clamp(24px, 2.4vw, 36px);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.fortune-meta-card small,
+.fortune-meta-label {
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.fortune-mode-switch {
+  padding: 6px;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.fortune-mode-tab {
+  min-height: 64px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+}
+
+.fortune-mode-tab span {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.fortune-mode-tab small {
+  margin-top: 3px;
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.fortune-mode-tab.active {
+  background: #0f172a;
+  color: #f8fafc;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+}
+
+.fortune-mode-tab.blindbox.active {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+.fortune-panel {
+  gap: 18px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+}
+
+.fortune-panel-left,
+.fortune-panel-right {
+  min-height: auto;
+  padding: 24px;
+  border-radius: 26px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.fortune-panel-left {
+  justify-content: flex-start;
+  gap: 14px;
+}
+
+.fortune-panel-kicker,
+.fortune-side-caption {
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.fortune-panel-value {
+  font-family: 'Manrope', var(--font-display);
+  font-size: clamp(34px, 5vw, 52px);
+  line-height: 0.92;
+  letter-spacing: -0.08em;
+}
+
+.fortune-panel-title {
+  font-size: clamp(24px, 2.4vw, 34px);
+  line-height: 1.04;
+  letter-spacing: -0.05em;
+}
+
+.fortune-panel-note {
+  max-width: 560px;
+  font-size: 15px;
+  color: #64748b;
+}
+
+.fortune-action {
+  width: min(100%, 320px);
+  min-height: 54px;
+  margin-top: 10px;
+  border-radius: 999px;
+  font-family: 'Manrope', var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.fortune-bullet-grid {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.fortune-bullet-card,
+.blindbox-locked-note {
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  background: rgba(248, 250, 252, 0.92);
+  box-shadow: none;
+}
+
+.fortune-bullet-card strong,
+.fortune-side-title {
+  font-family: 'Manrope', var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.fortune-bullet-card span {
+  color: #64748b;
+}
+
+.mode-lock-card {
+  background: rgba(226, 232, 240, 0.72);
+}
+
+.blindbox-inline-symbol {
+  margin: 4px 0 0 -16px;
+  transform: scale(0.42);
+  transform-origin: top left;
+  height: 80px;
+}
+
+.blindbox-surface .fortune-panel-note {
+  margin-top: 0;
+}
+
+.blindbox-chip-cloud {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.blindbox-chip {
+  min-height: 92px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: none;
+}
+
+.blindbox-chip strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.blindbox-chip em {
+  margin-top: 8px;
+  font-style: normal;
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0f172a;
+}
+
+.blindbox-demo-hint,
+.admin-demo-inline-hint {
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px dashed rgba(15, 23, 42, 0.16);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.blindbox-demo-button {
+  border-radius: 999px;
+}
+
+.fortune-redeem-panel,
+.history-panel {
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.history-panel .section-title,
+.fortune-redeem-panel .section-title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+  font-size: 20px;
+}
+
+.history-item-card {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.86);
+  box-shadow: none;
+}
+
+.fortune-history-mark,
+.fortune-reward-text {
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fortune-reward-text {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+@media (max-width: 1100px) {
+  .fortune-shell-head,
+  .fortune-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .fortune-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fortune-title {
+    font-size: clamp(44px, 12vw, 72px);
+  }
+
+  .fortune-title-shadow {
+    font-size: clamp(36px, 10vw, 60px);
+  }
+}
+
+@media (max-width: 700px) {
+  .fortune-shell {
+    padding: 18px;
+    border-radius: 22px;
+    background-size: 28px 28px, 28px 28px, auto;
+  }
+
+  .fortune-mode-switch {
+    flex-direction: column;
+    border-radius: 24px;
+  }
+
+  .fortune-mode-tab {
+    width: 100%;
+  }
+
+  .fortune-panel-left,
+  .fortune-panel-right,
+  .fortune-redeem-panel,
+  .history-panel {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .history-item-card {
+    grid-template-columns: 1fr;
+  }
+
+  .blindbox-chip-cloud {
     grid-template-columns: 1fr;
   }
 }
