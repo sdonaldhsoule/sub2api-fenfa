@@ -21,9 +21,33 @@ vi.mock('./pages/CheckinPage', () => ({
   CheckinPage: () => <div>签到页</div>
 }));
 
+vi.mock('./pages/RedeemPage', () => ({
+  RedeemPage: () => <div>福利码页</div>
+}));
+
+vi.mock('./pages/HistoryPage', () => ({
+  HistoryPage: () => <div>记录页</div>
+}));
+
+vi.mock('./pages/ResetPage', () => ({
+  ResetPage: () => <div>重置页</div>
+}));
+
 vi.mock('./pages/AdminPage', () => ({
   AdminPage: () => <div>管理页</div>
 }));
+
+vi.mock('./components/AppShell', async () => {
+  const router = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    AppShell: () => (
+      <div>
+        应用壳
+        <router.Outlet />
+      </div>
+    )
+  };
+});
 
 describe('App routes', () => {
   beforeEach(() => {

@@ -7,13 +7,19 @@ import {
   keyBySessionUser
 } from '../middleware/rate-limit-middleware.js';
 import { requireAdmin } from '../middleware/admin-middleware.js';
-import type { CheckinRecord, RedeemClaim, RedeemCode } from '../types/domain.js';
+import type {
+  CheckinRecord,
+  RedeemClaim,
+  RedeemCode,
+  ResetRecord
+} from '../types/domain.js';
 import {
   checkinService,
   ConflictError,
   NotFoundError,
   welfareRepository
 } from '../services/checkin-service.js';
+import { resetService } from '../services/reset-service.js';
 import {
   redeemService,
   ConflictError as RedeemConflictError,
@@ -97,6 +103,28 @@ function toAdminRedeemClaimPayload(item: RedeemClaim) {
   };
 }
 
+function toAdminResetRecordPayload(record: ResetRecord) {
+  return {
+    id: record.id,
+    sub2apiUserId: record.sub2apiUserId,
+    sub2apiEmail: record.sub2apiEmail,
+    sub2apiUsername: record.sub2apiUsername,
+    linuxdoSubject: record.linuxdoSubject,
+    beforeBalance: record.beforeBalance,
+    thresholdBalance: record.thresholdBalance,
+    targetBalance: record.targetBalance,
+    grantedBalance: record.grantedBalance,
+    newBalance: record.newBalance,
+    cooldownDays: record.cooldownDays,
+    idempotencyKey: record.idempotencyKey,
+    grantStatus: record.grantStatus,
+    grantError: record.grantError,
+    sub2apiRequestId: record.sub2apiRequestId,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt
+  };
+}
+
 function toAdminBlindboxItemPayload(item: {
   id: number;
   title: string;
@@ -161,7 +189,12 @@ const settingsUpdateSchema = z.object({
   checkin_enabled: z.boolean().optional(),
   blindbox_enabled: z.boolean().optional(),
   daily_reward_balance: z.number().positive().optional(),
-  timezone: z.string().min(1).optional()
+  timezone: z.string().min(1).optional(),
+  reset_enabled: z.boolean().optional(),
+  reset_threshold_balance: z.number().min(0).optional(),
+  reset_target_balance: z.number().positive().optional(),
+  reset_cooldown_days: z.number().int().min(0).optional(),
+  reset_notice: z.string().max(500).optional()
 });
 
 const statsQuerySchema = z.object({
@@ -211,6 +244,15 @@ const redeemClaimsQuerySchema = z.object({
   grant_status: z.enum(['pending', 'success', 'failed']).optional(),
   subject: z.string().max(64).optional(),
   code: z.string().max(64).optional()
+});
+
+const resetRecordsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  page_size: z.coerce.number().int().positive().max(200).optional(),
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  grant_status: z.enum(['pending', 'success', 'failed']).optional(),
+  subject: z.string().max(64).optional()
 });
 
 const blindboxItemCreateSchema = z.object({
@@ -267,7 +309,12 @@ adminRouter.get('/overview', asyncHandler(async (_req, res) => {
       checkin_enabled: settings.checkinEnabled,
       blindbox_enabled: settings.blindboxEnabled,
       daily_reward_balance: settings.dailyRewardBalance,
-      timezone: settings.timezone
+      timezone: settings.timezone,
+      reset_enabled: settings.resetEnabled,
+      reset_threshold_balance: settings.resetThresholdBalance,
+      reset_target_balance: settings.resetTargetBalance,
+      reset_cooldown_days: settings.resetCooldownDays,
+      reset_notice: settings.resetNotice
     },
     stats,
     whitelist
@@ -280,7 +327,12 @@ adminRouter.get('/settings', asyncHandler(async (_req, res) => {
     checkin_enabled: settings.checkinEnabled,
     blindbox_enabled: settings.blindboxEnabled,
     daily_reward_balance: settings.dailyRewardBalance,
-    timezone: settings.timezone
+    timezone: settings.timezone,
+    reset_enabled: settings.resetEnabled,
+    reset_threshold_balance: settings.resetThresholdBalance,
+    reset_target_balance: settings.resetTargetBalance,
+    reset_cooldown_days: settings.resetCooldownDays,
+    reset_notice: settings.resetNotice
   });
 }));
 
@@ -297,17 +349,38 @@ adminRouter.put('/settings', asyncHandler(async (req, res) => {
     return;
   }
 
+  const currentSettings = await checkinService.getAdminSettings();
+  const nextThreshold =
+    payload.reset_threshold_balance ?? currentSettings.resetThresholdBalance;
+  const nextTarget =
+    payload.reset_target_balance ?? currentSettings.resetTargetBalance;
+
+  if (nextTarget <= nextThreshold) {
+    fail(res, 400, 'BAD_REQUEST', 'reset_target_balance 必须大于 reset_threshold_balance');
+    return;
+  }
+
   const settings = await checkinService.updateAdminSettings({
     checkinEnabled: payload.checkin_enabled,
     blindboxEnabled: payload.blindbox_enabled,
     dailyRewardBalance: payload.daily_reward_balance,
-    timezone: payload.timezone
+    timezone: payload.timezone,
+    resetEnabled: payload.reset_enabled,
+    resetThresholdBalance: payload.reset_threshold_balance,
+    resetTargetBalance: payload.reset_target_balance,
+    resetCooldownDays: payload.reset_cooldown_days,
+    resetNotice: payload.reset_notice?.trim()
   });
   ok(res, {
     checkin_enabled: settings.checkinEnabled,
     blindbox_enabled: settings.blindboxEnabled,
     daily_reward_balance: settings.dailyRewardBalance,
-    timezone: settings.timezone
+    timezone: settings.timezone,
+    reset_enabled: settings.resetEnabled,
+    reset_threshold_balance: settings.resetThresholdBalance,
+    reset_target_balance: settings.resetTargetBalance,
+    reset_cooldown_days: settings.resetCooldownDays,
+    reset_notice: settings.resetNotice
   });
 }));
 
@@ -605,6 +678,32 @@ adminRouter.get('/redeem-claims', asyncHandler(async (req, res) => {
   });
   ok(res, {
     items: result.items.map((item) => toAdminRedeemClaimPayload(item)),
+    total: result.total,
+    page,
+    page_size: pageSize,
+    pages: Math.max(1, Math.ceil(result.total / pageSize))
+  });
+}));
+
+adminRouter.get('/reset-records', asyncHandler(async (req, res) => {
+  const parsed = resetRecordsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    fail(res, 400, 'BAD_REQUEST', '查询参数非法');
+    return;
+  }
+
+  const page = parsed.data.page ?? 1;
+  const pageSize = parsed.data.page_size ?? 20;
+  const result = await resetService.getAdminResetRecords({
+    page,
+    pageSize,
+    dateFrom: parsed.data.date_from,
+    dateTo: parsed.data.date_to,
+    grantStatus: parsed.data.grant_status,
+    subject: parsed.data.subject?.trim() || undefined
+  });
+  ok(res, {
+    items: result.items.map((item) => toAdminResetRecordPayload(item)),
     total: result.total,
     page,
     page_size: pageSize,

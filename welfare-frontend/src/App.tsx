@@ -1,10 +1,14 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
+import { AppShell } from './components/AppShell';
 import { useAuth } from './lib/auth';
 import { LoginPage } from './pages/LoginPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { Sub2apiBridgePage } from './pages/Sub2apiBridgePage';
 import { CheckinPage } from './pages/CheckinPage';
+import { RedeemPage } from './pages/RedeemPage';
+import { HistoryPage } from './pages/HistoryPage';
+import { ResetPage } from './pages/ResetPage';
 import { AdminPage } from './pages/AdminPage';
 
 function AuthLoadingScreen() {
@@ -87,22 +91,26 @@ export default function App() {
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="/auth/sub2api-bridge" element={<Sub2apiBridgePage />} />
         <Route
-          path="/checkin"
           element={
             <RequireAuth>
-              <CheckinPage />
+              <AppShell />
             </RequireAuth>
           }
-        />
-        <Route
-          path="/admin"
-          element={
-            <RequireAuth requireAdmin>
-              <AdminPage />
-            </RequireAuth>
-          }
-        />
-        <Route path="*" element={<Navigate to="/checkin" replace />} />
+        >
+          <Route path="/checkin" element={<CheckinPage />} />
+          <Route path="/redeem" element={<RedeemPage />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/reset" element={<ResetPage />} />
+          <Route
+            path="/admin"
+            element={
+              <RequireAuth requireAdmin>
+                <AdminPage />
+              </RequireAuth>
+            }
+          />
+          <Route path="*" element={<Navigate to="/checkin" replace />} />
+        </Route>
       </Routes>
     </AnimatePresence>
   );

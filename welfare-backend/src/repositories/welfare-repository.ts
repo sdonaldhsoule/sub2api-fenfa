@@ -3,6 +3,7 @@ import type {
   BlindboxItem,
   CheckinMode,
   CheckinRecord,
+  ResetRecord,
   WelfareSettings
 } from '../types/domain.js';
 import { config } from '../config.js';
@@ -62,34 +63,62 @@ export interface UpdateBlindboxItemInput {
   sortOrder?: number;
 }
 
+export interface CreateResetRecordInput {
+  sub2apiUserId: number;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
+  beforeBalance: number;
+  thresholdBalance: number;
+  targetBalance: number;
+  grantedBalance: number;
+  cooldownDays: number;
+  idempotencyKey: string;
+}
+
 export class WelfareRepository {
   constructor(private readonly db: Pool) {}
 
-  async getSettings(): Promise<WelfareSettings> {
-    const result = await this.db.query(
-      `SELECT checkin_enabled, blindbox_enabled, daily_reward_balance, timezone
+  async getSettings(client?: PoolClient): Promise<WelfareSettings> {
+    const executor = client ?? this.db;
+    const result = await executor.query(
+      `SELECT checkin_enabled,
+              blindbox_enabled,
+              daily_reward_balance,
+              timezone,
+              reset_enabled,
+              reset_threshold_balance,
+              reset_target_balance,
+              reset_cooldown_days,
+              reset_notice
        FROM welfare_settings
        WHERE id = 1`
     );
     if (result.rowCount === 0) {
-      await this.db.query(
+      await executor.query(
         `INSERT INTO welfare_settings (
            id,
            checkin_enabled,
            blindbox_enabled,
            daily_reward_balance,
-           timezone
+           timezone,
+           reset_enabled,
+           reset_threshold_balance,
+           reset_target_balance,
+           reset_cooldown_days,
+           reset_notice
          )
-         VALUES (1, $1, $2, $3, $4)
+         VALUES (1, $1, $2, $3, $4, FALSE, 20, 200, 7, $5)
          ON CONFLICT (id) DO NOTHING`,
         [
           config.DEFAULT_CHECKIN_ENABLED,
           false,
           config.DEFAULT_DAILY_REWARD,
-          config.DEFAULT_TIMEZONE
+          config.DEFAULT_TIMEZONE,
+          '当当前余额低于阈值时，可直接补到目标值。'
         ]
       );
-      return this.getSettings();
+      return this.getSettings(client);
     }
 
     const row = result.rows[0];
@@ -97,31 +126,56 @@ export class WelfareRepository {
       checkinEnabled: Boolean(row.checkin_enabled),
       blindboxEnabled: Boolean(row.blindbox_enabled),
       dailyRewardBalance: toNumber(row.daily_reward_balance),
-      timezone: String(row.timezone)
+      timezone: String(row.timezone),
+      resetEnabled: Boolean(row.reset_enabled),
+      resetThresholdBalance: toNumber(row.reset_threshold_balance),
+      resetTargetBalance: toNumber(row.reset_target_balance),
+      resetCooldownDays: Number(row.reset_cooldown_days),
+      resetNotice: String(row.reset_notice ?? '')
     };
   }
 
-  async updateSettings(input: Partial<WelfareSettings>): Promise<WelfareSettings> {
-    const current = await this.getSettings();
+  async updateSettings(
+    input: Partial<WelfareSettings>,
+    client?: PoolClient
+  ): Promise<WelfareSettings> {
+    const executor = client ?? this.db;
+    const current = await this.getSettings(client);
     const next = {
       checkinEnabled: input.checkinEnabled ?? current.checkinEnabled,
       blindboxEnabled: input.blindboxEnabled ?? current.blindboxEnabled,
       dailyRewardBalance: input.dailyRewardBalance ?? current.dailyRewardBalance,
-      timezone: input.timezone ?? current.timezone
+      timezone: input.timezone ?? current.timezone,
+      resetEnabled: input.resetEnabled ?? current.resetEnabled,
+      resetThresholdBalance:
+        input.resetThresholdBalance ?? current.resetThresholdBalance,
+      resetTargetBalance: input.resetTargetBalance ?? current.resetTargetBalance,
+      resetCooldownDays: input.resetCooldownDays ?? current.resetCooldownDays,
+      resetNotice: input.resetNotice ?? current.resetNotice
     };
-    await this.db.query(
+    await executor.query(
       `UPDATE welfare_settings
        SET checkin_enabled = $1,
            blindbox_enabled = $2,
            daily_reward_balance = $3,
            timezone = $4,
+           reset_enabled = $5,
+           reset_threshold_balance = $6,
+           reset_target_balance = $7,
+           reset_cooldown_days = $8,
+           reset_notice = $9,
            updated_at = NOW()
        WHERE id = 1`,
       [
         next.checkinEnabled,
         next.blindboxEnabled,
         next.dailyRewardBalance,
-        next.timezone
+        next.timezone,
+        next.resetEnabled,
+        next.resetThresholdBalance,
+        next.resetTargetBalance,
+        next.resetCooldownDays,
+        next.resetNotice
       ]
     );
     return next;
@@ -574,6 +628,189 @@ export class WelfareRepository {
     };
   }
 
+  async getLatestUserResetRecord(
+    sub2apiUserId: number,
+    client?: PoolClient
+  ): Promise<ResetRecord | null> {
+    const executor = client ?? this.db;
+    const result = await executor.query(
+      `SELECT *
+       FROM welfare_reset_records
+       WHERE sub2api_user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [sub2apiUserId]
+    );
+    return result.rowCount ? this.mapResetRecord(result.rows[0]) : null;
+  }
+
+  async getLatestUserSuccessfulReset(
+    sub2apiUserId: number,
+    client?: PoolClient
+  ): Promise<ResetRecord | null> {
+    const executor = client ?? this.db;
+    const result = await executor.query(
+      `SELECT *
+       FROM welfare_reset_records
+       WHERE sub2api_user_id = $1
+         AND grant_status = 'success'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [sub2apiUserId]
+    );
+    return result.rowCount ? this.mapResetRecord(result.rows[0]) : null;
+  }
+
+  async createResetPending(
+    input: CreateResetRecordInput,
+    client?: PoolClient
+  ): Promise<ResetRecord> {
+    const executor = client ?? this.db;
+    const result = await executor.query(
+      `INSERT INTO welfare_reset_records (
+         sub2api_user_id,
+         sub2api_email,
+         sub2api_username,
+         linuxdo_subject,
+         before_balance,
+         threshold_balance,
+         target_balance,
+         granted_balance,
+         cooldown_days,
+         idempotency_key,
+         grant_status
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
+       RETURNING *`,
+      [
+        input.sub2apiUserId,
+        input.sub2apiEmail,
+        input.sub2apiUsername,
+        input.linuxdoSubject,
+        input.beforeBalance,
+        input.thresholdBalance,
+        input.targetBalance,
+        input.grantedBalance,
+        input.cooldownDays,
+        input.idempotencyKey
+      ]
+    );
+
+    return this.mapResetRecord(result.rows[0]);
+  }
+
+  async markResetSuccess(
+    id: number,
+    requestId: string,
+    newBalance: number | null,
+    client?: PoolClient
+  ): Promise<void> {
+    const executor = client ?? this.db;
+    await executor.query(
+      `UPDATE welfare_reset_records
+       SET grant_status = 'success',
+           grant_error = '',
+           sub2api_request_id = $2,
+           new_balance = $3,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [id, requestId, newBalance]
+    );
+  }
+
+  async markResetFailed(
+    id: number,
+    errorText: string,
+    client?: PoolClient
+  ): Promise<void> {
+    const executor = client ?? this.db;
+    await executor.query(
+      `UPDATE welfare_reset_records
+       SET grant_status = 'failed',
+           grant_error = $2,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [id, errorText]
+    );
+  }
+
+  async listUserResetRecords(
+    sub2apiUserId: number,
+    limit = 20,
+    client?: PoolClient
+  ): Promise<ResetRecord[]> {
+    const executor = client ?? this.db;
+    const result = await executor.query(
+      `SELECT *
+       FROM welfare_reset_records
+       WHERE sub2api_user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [sub2apiUserId, limit]
+    );
+    return result.rows.map((row) => this.mapResetRecord(row));
+  }
+
+  async queryAdminResetRecords(params: {
+    page: number;
+    pageSize: number;
+    dateFrom?: string;
+    dateTo?: string;
+    grantStatus?: string;
+    subject?: string;
+  }): Promise<{ items: ResetRecord[]; total: number }> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (params.dateFrom) {
+      values.push(params.dateFrom);
+      conditions.push(`created_at >= $${values.length}::date`);
+    }
+    if (params.dateTo) {
+      values.push(params.dateTo);
+      conditions.push(`created_at < ($${values.length}::date + INTERVAL '1 day')`);
+    }
+    if (params.grantStatus) {
+      values.push(params.grantStatus);
+      conditions.push(`grant_status = $${values.length}`);
+    }
+    if (params.subject) {
+      values.push(`%${params.subject}%`);
+      conditions.push(
+        `(COALESCE(linuxdo_subject, '') ILIKE $${values.length}
+          OR sub2api_email ILIKE $${values.length}
+          OR sub2api_username ILIKE $${values.length})`
+      );
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const offset = (params.page - 1) * params.pageSize;
+
+    const totalResult = await this.db.query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM welfare_reset_records
+       ${whereClause}`,
+      values
+    );
+
+    values.push(params.pageSize);
+    values.push(offset);
+    const listResult = await this.db.query(
+      `SELECT *
+       FROM welfare_reset_records
+       ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${values.length - 1}
+       OFFSET $${values.length}`,
+      values
+    );
+
+    return {
+      items: listResult.rows.map((row) => this.mapResetRecord(row)),
+      total: Number(totalResult.rows[0]?.total ?? 0)
+    };
+  }
+
   async getDailyStats(startDate: string): Promise<
     Array<{
       checkinDate: string;
@@ -660,6 +897,32 @@ export class WelfareRepository {
       rewardBalance: toNumber(row.reward_balance),
       idempotencyKey: String(row.idempotency_key),
       grantStatus: String(row.grant_status) as CheckinRecord['grantStatus'],
+      grantError: String(row.grant_error ?? ''),
+      sub2apiRequestId: String(row.sub2api_request_id ?? ''),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at ?? row.created_at)
+    };
+  }
+
+  private mapResetRecord(row: Record<string, unknown>): ResetRecord {
+    return {
+      id: Number(row.id),
+      sub2apiUserId: Number(row.sub2api_user_id),
+      sub2apiEmail: String(row.sub2api_email ?? ''),
+      sub2apiUsername: String(row.sub2api_username ?? ''),
+      linuxdoSubject:
+        typeof row.linuxdo_subject === 'string' && row.linuxdo_subject.trim() !== ''
+          ? String(row.linuxdo_subject)
+          : null,
+      beforeBalance: toNumber(row.before_balance),
+      thresholdBalance: toNumber(row.threshold_balance),
+      targetBalance: toNumber(row.target_balance),
+      grantedBalance: toNumber(row.granted_balance),
+      newBalance:
+        row.new_balance == null ? null : toNumber(row.new_balance),
+      cooldownDays: Number(row.cooldown_days ?? 0),
+      idempotencyKey: String(row.idempotency_key),
+      grantStatus: String(row.grant_status) as ResetRecord['grantStatus'],
       grantError: String(row.grant_error ?? ''),
       sub2apiRequestId: String(row.sub2api_request_id ?? ''),
       createdAt: String(row.created_at),

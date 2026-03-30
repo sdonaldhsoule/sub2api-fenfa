@@ -42,6 +42,10 @@ const mockRedeemService = vi.hoisted(() => ({
   retryRedeemClaim: vi.fn()
 }));
 
+const mockResetService = vi.hoisted(() => ({
+  getAdminResetRecords: vi.fn()
+}));
+
 vi.mock('../middleware/auth-middleware.js', () => ({
   requireAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.sessionUser = {
@@ -79,6 +83,10 @@ vi.mock('../services/sub2api-client.js', () => ({
   sub2apiClient: mockSub2apiClient
 }));
 
+vi.mock('../services/reset-service.js', () => ({
+  resetService: mockResetService
+}));
+
 async function createTestApp() {
   const { adminRouter } = await import('./admin-routes.js');
   const app = express();
@@ -100,6 +108,7 @@ describe('adminRouter', () => {
     Object.values(mockCheckinService).forEach((fn) => fn.mockReset());
     Object.values(mockWelfareRepository).forEach((fn) => fn.mockReset());
     Object.values(mockRedeemService).forEach((fn) => fn.mockReset());
+    Object.values(mockResetService).forEach((fn) => fn.mockReset());
   });
 
   it('PUT /settings 在 timezone 非法时返回 400', async () => {
@@ -118,7 +127,12 @@ describe('adminRouter', () => {
       checkinEnabled: true,
       blindboxEnabled: true,
       dailyRewardBalance: 10,
-      timezone: 'Asia/Shanghai'
+      timezone: 'Asia/Shanghai',
+      resetEnabled: true,
+      resetThresholdBalance: 20,
+      resetTargetBalance: 200,
+      resetCooldownDays: 7,
+      resetNotice: '余额低于阈值时可直接重置'
     });
     mockCheckinService.getAdminDailyStats.mockResolvedValue({
       days: 30,
@@ -138,9 +152,53 @@ describe('adminRouter', () => {
       checkin_enabled: true,
       blindbox_enabled: true,
       daily_reward_balance: 10,
-      timezone: 'Asia/Shanghai'
+      timezone: 'Asia/Shanghai',
+      reset_enabled: true,
+      reset_threshold_balance: 20,
+      reset_target_balance: 200,
+      reset_cooldown_days: 7,
+      reset_notice: '余额低于阈值时可直接重置'
     });
     expect(response.body.data.stats.total_grant_balance).toBe(100);
+  });
+
+  it('GET /reset-records 返回重置流水分页结果', async () => {
+    mockResetService.getAdminResetRecords.mockResolvedValue({
+      items: [
+        {
+          id: 3,
+          sub2apiUserId: 7,
+          sub2apiEmail: 'tester@example.com',
+          sub2apiUsername: 'tester',
+          linuxdoSubject: 'subject',
+          beforeBalance: 12,
+          thresholdBalance: 20,
+          targetBalance: 200,
+          grantedBalance: 188,
+          newBalance: 200,
+          cooldownDays: 7,
+          idempotencyKey: 'welfare-reset:7:1',
+          grantStatus: 'success',
+          grantError: '',
+          sub2apiRequestId: 'req-reset-1',
+          createdAt: '2026-03-30T08:00:00.000Z',
+          updatedAt: '2026-03-30T08:00:01.000Z'
+        }
+      ],
+      total: 1
+    });
+
+    const app = await createTestApp();
+    const response = await request(app).get('/api/admin/reset-records?page=1&page_size=20');
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.items[0]).toEqual(
+      expect.objectContaining({
+        sub2apiUserId: 7,
+        grantedBalance: 188,
+        grantStatus: 'success'
+      })
+    );
   });
 
   it('DELETE /whitelist/:id 会阻止删除当前登录管理员', async () => {

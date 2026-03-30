@@ -19,6 +19,11 @@ export interface WelfareSettings {
   blindboxEnabled: boolean;
   dailyRewardBalance: number;
   timezone: string;
+  resetEnabled: boolean;
+  resetThresholdBalance: number;
+  resetTargetBalance: number;
+  resetCooldownDays: number;
+  resetNotice: string;
 }
 
 export interface BlindboxItem {
@@ -76,6 +81,26 @@ export interface RedeemClaim {
   redeemCode: string;
   redeemTitle: string;
   rewardBalance: number;
+  idempotencyKey: string;
+  grantStatus: 'pending' | 'success' | 'failed';
+  grantError: string;
+  sub2apiRequestId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResetRecord {
+  id: number;
+  sub2apiUserId: number;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
+  beforeBalance: number;
+  thresholdBalance: number;
+  targetBalance: number;
+  grantedBalance: number;
+  newBalance: number | null;
+  cooldownDays: number;
   idempotencyKey: string;
   grantStatus: 'pending' | 'success' | 'failed';
   grantError: string;

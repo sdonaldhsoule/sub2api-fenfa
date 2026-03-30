@@ -4,6 +4,8 @@ import type {
   AdminCheckinList,
   AdminCheckinQuery,
   AdminOverview,
+  AdminResetRecordList,
+  AdminResetRecordQuery,
   AdminRedeemClaimItem,
   AdminRedeemClaimList,
   AdminRedeemClaimQuery,
@@ -14,6 +16,8 @@ import type {
   CheckinHistoryItem,
   CheckinStatus,
   DailyStats,
+  ResetHistoryItem,
+  ResetStatus,
   RedeemHistoryItem,
   SessionUser,
   WhitelistItem
@@ -160,6 +164,20 @@ export const api = {
       grant_status: 'success';
     }>('/api/checkin/blindbox', { method: 'POST' }),
   getCheckinHistory: () => request<CheckinHistoryItem[]>('/api/checkin/history'),
+  getResetStatus: () => request<ResetStatus>('/api/reset/status'),
+  applyReset: () =>
+    request<{
+      id: number;
+      before_balance: number;
+      granted_balance: number;
+      new_balance: number;
+      target_balance: number;
+      next_available_at: string | null;
+      grant_status: 'success';
+    }>('/api/reset/apply', {
+      method: 'POST'
+    }),
+  getResetHistory: () => request<ResetHistoryItem[]>('/api/reset/history'),
   redeemCode: (payload: { code: string }) =>
     request<{
       claim_id: number;
@@ -294,7 +312,20 @@ export const api = {
       new_balance: number | null;
     }>(`/api/admin/redeem-claims/${id}/retry`, {
       method: 'POST'
-    })
+    }),
+  listAdminResetRecords: (params: AdminResetRecordQuery = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.page_size) query.set('page_size', String(params.page_size));
+    if (params.date_from) query.set('date_from', params.date_from);
+    if (params.date_to) query.set('date_to', params.date_to);
+    if (params.grant_status) query.set('grant_status', params.grant_status);
+    if (params.subject) query.set('subject', params.subject);
+    const suffix = query.toString();
+    return request<AdminResetRecordList>(
+      `/api/admin/reset-records${suffix ? `?${suffix}` : ''}`
+    );
+  }
 };
 
 export function buildLinuxDoStartUrl(redirectPath: string): string {

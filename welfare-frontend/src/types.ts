@@ -78,6 +78,52 @@ export interface AdminSettings {
   blindbox_enabled: boolean;
   daily_reward_balance: number;
   timezone: string;
+  reset_enabled: boolean;
+  reset_threshold_balance: number;
+  reset_target_balance: number;
+  reset_cooldown_days: number;
+  reset_notice: string;
+}
+
+export interface ResetRecordSummary {
+  id: number;
+  before_balance: number;
+  threshold_balance: number;
+  target_balance: number;
+  granted_balance: number;
+  new_balance: number | null;
+  cooldown_days: number;
+  grant_status: 'pending' | 'success' | 'failed';
+  grant_error: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResetStatus {
+  reset_enabled: boolean;
+  current_balance: number;
+  threshold_balance: number;
+  target_balance: number;
+  cooldown_days: number;
+  notice: string;
+  can_apply: boolean;
+  reason: string;
+  next_available_at: string | null;
+  latest_record: ResetRecordSummary | null;
+}
+
+export interface ResetHistoryItem {
+  id: number;
+  before_balance: number;
+  threshold_balance: number;
+  target_balance: number;
+  granted_balance: number;
+  new_balance: number | null;
+  cooldown_days: number;
+  grant_status: 'pending' | 'success' | 'failed';
+  grant_error: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DailyStatPoint {
@@ -195,6 +241,43 @@ export interface AdminRedeemClaimQuery {
   grant_status?: 'pending' | 'success' | 'failed';
   subject?: string;
   code?: string;
+}
+
+export interface AdminResetRecord {
+  id: number;
+  sub2apiUserId: number;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
+  beforeBalance: number;
+  thresholdBalance: number;
+  targetBalance: number;
+  grantedBalance: number;
+  newBalance: number | null;
+  cooldownDays: number;
+  idempotencyKey: string;
+  grantStatus: 'pending' | 'success' | 'failed';
+  grantError: string;
+  sub2apiRequestId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminResetRecordList {
+  items: AdminResetRecord[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export interface AdminResetRecordQuery {
+  page?: number;
+  page_size?: number;
+  date_from?: string;
+  date_to?: string;
+  grant_status?: 'pending' | 'success' | 'failed';
+  subject?: string;
 }
 
 export interface AdminUserSearchItem {

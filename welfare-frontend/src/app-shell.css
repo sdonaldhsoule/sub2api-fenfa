@@ -1,0 +1,219 @@
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-shell-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 18px 24px 14px;
+  backdrop-filter: blur(20px);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(248, 250, 252, 0.8));
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.app-shell-header-inner,
+.app-shell-nav-wrap {
+  width: min(1320px, 100%);
+  margin: 0 auto;
+}
+
+.app-shell-header-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 18px;
+}
+
+.app-shell-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--ink-0);
+}
+
+.app-shell-brand:hover {
+  color: var(--ink-0);
+  text-shadow: none;
+}
+
+.app-shell-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--ink-0), #334155);
+  color: #f8fafc;
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  box-shadow: 0 14px 26px -18px rgba(15, 23, 42, 0.8);
+}
+
+.app-shell-brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-shell-brand-copy strong {
+  font-family: 'Manrope', var(--font-display);
+  font-size: 18px;
+  letter-spacing: -0.04em;
+}
+
+.app-shell-brand-copy small {
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.app-shell-menu-button {
+  display: none;
+}
+
+.app-shell-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.app-shell-user-fallback {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.08);
+  font-family: 'Manrope', var(--font-display);
+  font-weight: 800;
+}
+
+.app-shell-user-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.app-shell-user-copy strong {
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+.app-shell-user-copy small {
+  color: var(--ink-2);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.app-shell-nav-wrap {
+  margin-top: 14px;
+}
+
+.app-shell-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.app-shell-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--ink-1);
+  font-size: 14px;
+  font-weight: 700;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.app-shell-nav-item:hover {
+  color: var(--ink-0);
+  transform: translateY(-1px);
+  border-color: rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.app-shell-nav-item.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--ink-0), #334155);
+  color: #f8fafc;
+  box-shadow: 0 12px 24px -18px rgba(15, 23, 42, 0.8);
+}
+
+.app-shell-main {
+  min-height: calc(100vh - 130px);
+}
+
+.app-shell-main .page {
+  width: min(1320px, 100%);
+  min-height: auto;
+  padding: 30px 24px 56px;
+}
+
+@media (max-width: 980px) {
+  .app-shell-header-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .app-shell-user {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    border-radius: 22px;
+  }
+
+  .app-shell-menu-button {
+    display: inline-flex;
+  }
+
+  .app-shell-nav {
+    display: none;
+  }
+
+  .app-shell-nav.open {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell-nav-item {
+    justify-content: center;
+    min-height: 48px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell-header {
+    padding-inline: 16px;
+  }
+
+  .app-shell-header-inner {
+    gap: 12px;
+  }
+
+  .app-shell-brand-copy small,
+  .app-shell-user-copy small {
+    display: none;
+  }
+
+  .app-shell-user {
+    padding: 8px;
+  }
+
+  .app-shell-main .page {
+    padding-inline: 16px;
+    padding-top: 22px;
+  }
+}

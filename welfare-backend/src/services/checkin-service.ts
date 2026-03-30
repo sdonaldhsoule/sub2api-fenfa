@@ -329,6 +329,11 @@ export class CheckinService {
     blindboxEnabled?: boolean;
     dailyRewardBalance?: number;
     timezone?: string;
+    resetEnabled?: boolean;
+    resetThresholdBalance?: number;
+    resetTargetBalance?: number;
+    resetCooldownDays?: number;
+    resetNotice?: string;
   }) {
     return this.repository.updateSettings(input);
   }

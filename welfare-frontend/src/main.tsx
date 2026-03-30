@@ -5,6 +5,8 @@ import App from './App';
 import { AuthProvider } from './lib/auth';
 import { getRouterBasename } from './lib/app-base';
 import './styles.css';
+import './app-shell.css';
+import './utility-pages.css';
 
 const routerBasename = getRouterBasename();
 

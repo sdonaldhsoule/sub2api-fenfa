@@ -48,6 +48,10 @@ vi.mock('../components/AdminRedeemCodesPanel', () => ({
   AdminRedeemCodesPanel: () => <div>兑换码模块</div>
 }));
 
+vi.mock('../components/AdminResetRecordsPanel', () => ({
+  AdminResetRecordsPanel: () => <div>重置模块</div>
+}));
+
 vi.mock('../components/AdminRedeemClaimsPanel', () => ({
   AdminRedeemClaimsPanel: () => <div>兑换记录模块</div>
 }));
@@ -77,7 +81,12 @@ describe('AdminPage dashboard', () => {
         checkin_enabled: true,
         blindbox_enabled: true,
         daily_reward_balance: 10,
-        timezone: 'Asia/Shanghai'
+        timezone: 'Asia/Shanghai',
+        reset_enabled: true,
+        reset_threshold_balance: 20,
+        reset_target_balance: 200,
+        reset_cooldown_days: 7,
+        reset_notice: '余额低于阈值时可直接重置'
       },
       stats: {
         days: 30,

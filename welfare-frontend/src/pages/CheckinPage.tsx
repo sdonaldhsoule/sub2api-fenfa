@@ -1,18 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BlindboxRevealOverlay, type BlindboxRevealStage } from '../components/BlindboxRevealOverlay';
-import { Icon } from '../components/Icon';
 import { useAuth } from '../lib/auth';
 import { api, isUnauthorizedError } from '../lib/api';
-import { formatAdminDate, formatAdminTime } from '../lib/admin-format';
 import { pageVariants, staggerContainer, staggerItem } from '../lib/animations';
+import { getModeLabel } from '../lib/welfare-display';
 import type {
   BlindboxPreviewItem,
-  CheckinHistoryItem,
   CheckinMode,
-  CheckinStatus,
-  RedeemHistoryItem
+  CheckinStatus
 } from '../types';
 
 interface BlindboxRevealState {
@@ -47,15 +44,6 @@ async function wait(ms: number): Promise<void> {
   await new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
-}
-
-function getModeLabel(mode: CheckinMode): string {
-  return mode === 'blindbox' ? '惊喜签到' : '普通签到';
-}
-
-function renderGrantTag(status: 'success' | 'pending' | 'failed') {
-  const label = status === 'success' ? '成功' : status === 'pending' ? '处理中' : '失败';
-  return <span className={`status-tag ${status}`}>{label}</span>;
 }
 
 function getNormalActionLabel(status: CheckinStatus | null, submittingMode: CheckinMode | null): string {
@@ -184,12 +172,8 @@ export function CheckinPage() {
   const { user, logout } = useAuth();
   const [activeMode, setActiveMode] = useState<CheckinMode>('normal');
   const [status, setStatus] = useState<CheckinStatus | null>(null);
-  const [history, setHistory] = useState<CheckinHistoryItem[]>([]);
-  const [redeemHistory, setRedeemHistory] = useState<RedeemHistoryItem[]>([]);
-  const [redeemCodeInput, setRedeemCodeInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [submittingMode, setSubmittingMode] = useState<CheckinMode | null>(null);
-  const [redeemSubmitting, setRedeemSubmitting] = useState(false);
   const [blindboxReveal, setBlindboxReveal] = useState<BlindboxRevealState>(
     initialBlindboxRevealState
   );
@@ -207,14 +191,8 @@ export function CheckinPage() {
     }
     setError('');
     try {
-      const [currentStatus, records, redeemRecords] = await Promise.all([
-        api.getCheckinStatus(),
-        api.getCheckinHistory(),
-        api.getRedeemHistory()
-      ]);
+      const currentStatus = await api.getCheckinStatus();
       setStatus(currentStatus);
-      setHistory(records);
-      setRedeemHistory(redeemRecords);
     } catch (err) {
       if (isUnauthorizedError(err)) {
         await redirectToLogin();
@@ -256,11 +234,6 @@ export function CheckinPage() {
     if (!status) return false;
     return status.can_checkin_blindbox && submittingMode == null;
   }, [status, submittingMode]);
-
-  const canRedeem = useMemo(
-    () => redeemCodeInput.trim() !== '' && !redeemSubmitting,
-    [redeemCodeInput, redeemSubmitting]
-  );
 
   async function handleNormalCheckin() {
     if (!canSubmitNormal) return;
@@ -461,39 +434,6 @@ export function CheckinPage() {
     }
   }
 
-  async function handleRedeem() {
-    if (!canRedeem) return;
-    setRedeemSubmitting(true);
-    setError('');
-    setSuccess('');
-    try {
-      const result = await api.redeemCode({
-        code: redeemCodeInput.trim()
-      });
-      setRedeemCodeInput('');
-      setSuccess(
-        `兑换成功，${result.title} 已发放 ${result.reward_balance}，当前余额 ${
-          result.new_balance ?? '未知'
-        }`
-      );
-      await loadAll();
-    } catch (err) {
-      if (isUnauthorizedError(err)) {
-        await redirectToLogin();
-        return;
-      }
-      setError(
-        `兑换失败：${err instanceof Error && err.message ? err.message : '请稍后重试'}`
-      );
-    } finally {
-      setRedeemSubmitting(false);
-    }
-  }
-
-  async function handleLogout() {
-    await redirectToLogin();
-  }
-
   if (loading) {
     return (
       <div className="page page-center">
@@ -535,15 +475,9 @@ export function CheckinPage() {
               </p>
             </div>
           </div>
-          <div className="actions">
-            {user?.is_admin && (
-              <Link to="/admin" className="button ghost">
-                <Icon name="settings" size={16} /> 后台管理
-              </Link>
-            )}
-            <button className="button danger" onClick={handleLogout}>
-              退出
-            </button>
+          <div className="stack checkin-header-note">
+            <strong>今日模式只会生成一条签到记录</strong>
+            <span className="muted">兑换福利码、查看历史记录和额度重置已移到顶部导航</span>
           </div>
         </motion.header>
 
@@ -747,81 +681,29 @@ export function CheckinPage() {
           </motion.div>
         )}
 
-        <motion.div variants={staggerItem} className="panel fortune-redeem-panel">
-          <div className="section-head">
-            <h2 className="section-title">兑换福利码</h2>
+        <motion.section variants={staggerItem} className="quick-access-grid">
+          <div className="panel quick-access-card">
+            <strong>福利码改到独立页</strong>
+            <p>活动码、临时码和补发码统一走顶部导航里的“福利码”。</p>
+            <button className="button" onClick={() => navigate('/redeem')}>
+              前往福利码页
+            </button>
           </div>
-          <div className="redeem-form-row">
-            <div className="field redeem-field">
-              <span>福利码 (Code)</span>
-              <input
-                type="text"
-                value={redeemCodeInput}
-                onChange={(event) => setRedeemCodeInput(event.target.value)}
-                placeholder="在此输入福利分发码"
-                disabled={redeemSubmitting}
-              />
-            </div>
-            <div className="redeem-action">
-              <button className="button primary wide" disabled={!canRedeem} onClick={handleRedeem}>
-                {redeemSubmitting ? '兑换中...' : '立即兑换'}
-              </button>
-            </div>
+          <div className="panel quick-access-card">
+            <strong>历史记录单独沉淀</strong>
+            <p>签到与兑换流水都在“记录”页集中展示，不再和签到主流程混排。</p>
+            <button className="button" onClick={() => navigate('/history')}>
+              查看记录
+            </button>
           </div>
-        </motion.div>
-
-        <div className="checkin-history-columns">
-          <motion.div variants={staggerItem} className="panel history-panel" style={{ margin: 0 }}>
-            <div className="section-head">
-              <h2 className="section-title" style={{ fontSize: 20 }}>签到记录</h2>
-            </div>
-            {history.length === 0 ? (
-              <p className="muted">暂无历史记录</p>
-            ) : (
-              <div className="list">
-                {history.map((item) => (
-                  <div key={item.id} className="list-item history-item-card">
-                    <div className="stack">
-                      <strong style={{ fontSize: 14 }}>{formatAdminDate(item.checkin_date)}</strong>
-                      <span className="muted" style={{ fontSize: 13 }}>
-                        {formatAdminTime(item.created_at)} · {getModeLabel(item.checkin_mode)}
-                      </span>
-                      {item.blindbox_title && (
-                        <span className="fortune-history-mark">抽中：{item.blindbox_title}</span>
-                      )}
-                    </div>
-                    {renderGrantTag(item.grant_status)}
-                    <span className="fortune-reward-text">+{item.reward_balance}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-
-          <motion.div variants={staggerItem} className="panel history-panel" style={{ margin: 0 }}>
-            <div className="section-head">
-              <h2 className="section-title" style={{ fontSize: 20 }}>兑换记录</h2>
-            </div>
-            {redeemHistory.length === 0 ? (
-              <p className="muted">暂无历史记录</p>
-            ) : (
-              <div className="list">
-                {redeemHistory.map((item) => (
-                  <div key={item.id} className="list-item history-item-card">
-                    <div className="stack">
-                      <strong style={{ fontSize: 14 }}>{item.redeem_code}</strong>
-                      <span className="muted" style={{ fontSize: 13 }}>
-                        {formatAdminTime(item.created_at)} · {item.redeem_title}
-                      </span>
-                    </div>
-                    {renderGrantTag(item.grant_status)}
-                    <span className="fortune-reward-text">+{item.reward_balance}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        </div>
+          <div className="panel quick-access-card">
+            <strong>低余额可直接重置</strong>
+            <p>是否可补到目标值由后台规则控制，入口已经放到“重置”页。</p>
+            <button className="button" onClick={() => navigate('/reset')}>
+              打开重置页
+            </button>
+          </div>
+        </motion.section>
       </motion.div>
 
       <BlindboxRevealOverlay

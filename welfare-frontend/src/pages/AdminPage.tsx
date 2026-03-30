@@ -4,6 +4,7 @@ import { Icon } from '../components/Icon';
 import { AdminBlindboxPanel } from '../components/AdminBlindboxPanel';
 import { AdminCheckinsPanel } from '../components/AdminCheckinsPanel';
 import { AdminDashboardOverview } from '../components/AdminDashboardOverview';
+import { AdminResetRecordsPanel } from '../components/AdminResetRecordsPanel';
 import { AdminRedeemCodesPanel } from '../components/AdminRedeemCodesPanel';
 import { AdminRedeemClaimsPanel } from '../components/AdminRedeemClaimsPanel';
 import { AdminWhitelistPanel } from '../components/AdminWhitelistPanel';
@@ -23,7 +24,7 @@ import type {
 import { motion } from 'framer-motion';
 import { pageVariants } from '../lib/animations';
 
-type AdminSection = 'overview' | 'checkins' | 'redeemCodes' | 'redeemClaims' | 'whitelist';
+type AdminSection = 'overview' | 'checkins' | 'resetRecords' | 'redeemCodes' | 'redeemClaims' | 'whitelist';
 
 const defaultCheckinFilters: AdminCheckinQuery = {
   page: 1,
@@ -57,6 +58,13 @@ const sections: Array<{
     title: '签到控制',
     description: '维护签到配置、观察趋势并处理失败流水。',
     icon: 'bolt'
+  },
+  {
+    id: 'resetRecords',
+    label: '额度重置',
+    title: '重置控制台',
+    description: '管理用户直接重置规则，追踪补差额流水与失败原因。',
+    icon: 'grid'
   },
   {
     id: 'redeemCodes',
@@ -467,6 +475,10 @@ export function AdminPage() {
                 <span className="admin-nav-count">
                   {item.id === 'checkins'
                     ? stats?.total_checkins ?? 0
+                    : item.id === 'resetRecords'
+                      ? settings?.reset_enabled
+                        ? 'ON'
+                        : 'OFF'
                     : item.id === 'redeemCodes'
                       ? overviewRedeemCodes.length
                       : item.id === 'redeemClaims'
@@ -604,6 +616,16 @@ export function AdminPage() {
               onError={setError}
               onSuccess={setMessage}
               onCodesChanged={refreshDashboardSnapshot}
+            />
+          )}
+
+          {activeSection === 'resetRecords' && (
+            <AdminResetRecordsPanel
+              settings={settings}
+              onSettingsChange={setSettings}
+              onUnauthorized={redirectToLogin}
+              onError={setError}
+              onSuccess={setMessage}
             />
           )}
 

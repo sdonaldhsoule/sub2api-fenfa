@@ -91,7 +91,7 @@ describe('CheckinPage', () => {
     ]);
   });
 
-  it('会加载签到状态、签到记录和兑换记录', async () => {
+  it('会加载签到状态并展示拆页后的快捷入口', async () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <CheckinPage />
@@ -99,17 +99,68 @@ describe('CheckinPage', () => {
     );
 
     expect(await screen.findByText(/DAILY CHECK-IN/i)).toBeInTheDocument();
-    expect(screen.getByText('2026-03-24')).toBeInTheDocument();
-    expect(screen.getByText('WELCOME100')).toBeInTheDocument();
     expect(screen.getByText('惊喜签到')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '前往福利码页' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '查看记录' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '打开重置页' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /惊喜签到风险型盲盒/i }));
     expect(await screen.findByRole('button', { name: '管理员演示开盒' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /后台管理/i })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(mockApi.getCheckinStatus).toHaveBeenCalledTimes(1);
-      expect(mockApi.getCheckinHistory).toHaveBeenCalledTimes(1);
-      expect(mockApi.getRedeemHistory).toHaveBeenCalledTimes(1);
+      expect(mockApi.getCheckinHistory).not.toHaveBeenCalled();
+      expect(mockApi.getRedeemHistory).not.toHaveBeenCalled();
+    });
+  });
+
+  it('普通签到按钮可点击并触发请求', async () => {
+    mockApi.checkin.mockResolvedValue({
+      checkin_date: '2026-03-25',
+      checkin_mode: 'normal',
+      blindbox_item_id: null,
+      blindbox_title: null,
+      reward_balance: 10,
+      new_balance: 20,
+      grant_status: 'success'
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <CheckinPage />
+      </MemoryRouter>
+    );
+
+    const button = await screen.findByRole('button', { name: '领取固定奖励' });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(mockApi.checkin).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('盲盒签到按钮可点击并触发请求', async () => {
+    mockApi.checkBlindbox.mockResolvedValue({
+      checkin_date: '2026-03-25',
+      checkin_mode: 'blindbox',
+      blindbox_item_id: 2,
+      blindbox_title: '好运签',
+      reward_balance: 15,
+      new_balance: 25,
+      grant_status: 'success'
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <CheckinPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole('tab', { name: /惊喜签到风险型盲盒/i }));
+    const button = await screen.findByRole('button', { name: '开启今日盲盒' });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(mockApi.checkBlindbox).toHaveBeenCalledTimes(1);
     });
   });
 });
