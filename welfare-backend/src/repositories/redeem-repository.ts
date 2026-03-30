@@ -223,7 +223,7 @@ export class RedeemRepository {
          idempotency_key,
          grant_status
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
        ON CONFLICT (redeem_code_id, sub2api_user_id) DO NOTHING
        RETURNING *`,
       [

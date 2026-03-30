@@ -425,7 +425,7 @@ export class WelfareRepository {
          idempotency_key,
          grant_status
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
        ON CONFLICT (sub2api_user_id, checkin_date) DO NOTHING
        RETURNING *`,
       [
