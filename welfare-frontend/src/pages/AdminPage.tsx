@@ -399,6 +399,15 @@ export function AdminPage() {
     setMessage('');
     try {
       const result = await api.retryAdminCheckin(id);
+      if (result.deleted) {
+        await Promise.all([
+          loadCheckins(checkinFilters),
+          refreshDashboardSnapshot()
+        ]);
+        setMessage(result.deleted_reason);
+        return;
+      }
+
       const [statsResp] = await Promise.all([
         api.getDailyStats(30),
         loadCheckins(checkinFilters),
@@ -406,7 +415,12 @@ export function AdminPage() {
       ]);
       setStats(statsResp);
       const identity = result.item.sub2apiUsername || result.item.sub2apiEmail;
-      setMessage(`补发成功：${identity} / ${result.item.checkinDate}${result.new_balance !== null ? `，当前余额 ${result.new_balance}` : ''}`);
+      const detailPrefix = result.detail_message ? `${result.detail_message}；` : '';
+      setMessage(
+        `${detailPrefix}补发成功：${identity} / ${result.item.checkinDate}${
+          result.new_balance !== null ? `，当前余额 ${result.new_balance}` : ''
+        }`
+      );
     } catch (err) {
       if (isUnauthorizedError(err)) {
         await redirectToLogin();

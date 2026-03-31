@@ -656,6 +656,17 @@ export class WelfareRepository {
     );
   }
 
+  async deleteCheckinById(id: number): Promise<CheckinRecord | null> {
+    const result = await this.db.query(
+      `DELETE FROM welfare_checkins
+       WHERE id = $1
+         AND grant_status <> 'success'
+       RETURNING *`,
+      [id]
+    );
+    return result.rowCount ? this.mapCheckin(result.rows[0]) : null;
+  }
+
   async markCheckinFailed(id: number, errorText: string): Promise<void> {
     await this.db.query(
       `UPDATE welfare_checkins

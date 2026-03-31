@@ -624,8 +624,11 @@ adminRouter.post('/checkins/:id/retry', asyncHandler(async (req, res) => {
   try {
     const result = await checkinService.retryFailedCheckin(id);
     ok(res, {
-      item: toAdminCheckinPayload(result.item),
-      new_balance: result.new_balance
+      item: result.item ? toAdminCheckinPayload(result.item) : null,
+      new_balance: result.new_balance,
+      deleted: result.deleted,
+      deleted_reason: result.deleted_reason,
+      detail_message: result.detail_message
     });
   } catch (error) {
     if (error instanceof NotFoundError) {
@@ -1066,8 +1069,11 @@ adminRouter.post('/redeem-claims/:id/retry', asyncHandler(async (req, res) => {
   try {
     const result = await redeemService.retryRedeemClaim(id);
     ok(res, {
-      item: toAdminRedeemClaimPayload(result.item),
-      new_balance: result.new_balance
+      item: result.item ? toAdminRedeemClaimPayload(result.item) : null,
+      new_balance: result.new_balance,
+      deleted: result.deleted,
+      deleted_reason: result.deleted_reason,
+      detail_message: result.detail_message
     });
   } catch (error) {
     if (error instanceof RedeemNotFoundError) {

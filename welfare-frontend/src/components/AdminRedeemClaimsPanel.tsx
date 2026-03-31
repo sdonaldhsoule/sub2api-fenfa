@@ -108,10 +108,16 @@ export function AdminRedeemClaimsPanel({
         await onClaimsChanged();
       }
       onError('');
+      if (result.deleted) {
+        onSuccess(result.deleted_reason);
+        return;
+      }
+
+      const detailPrefix = result.detail_message ? `${result.detail_message}；` : '';
       onSuccess(
-        `补发成功：${result.item.redeemCode} / ${(result.item.sub2apiUsername || result.item.sub2apiEmail)}${
-          result.new_balance !== null ? `，当前余额 ${result.new_balance}` : ''
-        }`
+        `${detailPrefix}补发成功：${result.item.redeemCode} / ${
+          result.item.sub2apiUsername || result.item.sub2apiEmail
+        }${result.new_balance !== null ? `，当前余额 ${result.new_balance}` : ''}`
       );
     } catch (err) {
       if (isUnauthorizedError(err)) {

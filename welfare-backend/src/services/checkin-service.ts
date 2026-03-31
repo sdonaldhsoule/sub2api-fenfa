@@ -46,6 +46,7 @@ type WelfareRepositoryLike = Pick<
   | 'markCheckinSuccess'
   | 'markCheckinFailed'
   | 'updateCheckinRecipient'
+  | 'deleteCheckinById'
   | 'listUserCheckins'
   | 'updateSettings'
   | 'getDailyStats'
@@ -57,6 +58,32 @@ type Sub2apiClientLike = Pick<
   Sub2apiClient,
   'addUserBalance' | 'findUserByEmail' | 'getAdminUserById'
 >;
+
+type CheckinGrantResult =
+  | {
+      deleted: false;
+      newBalance: number | null;
+      requestId: string;
+      detailMessage: string | null;
+    }
+  | {
+      deleted: true;
+      newBalance: null;
+      requestId: null;
+      deletedReason: string;
+      detailMessage: null;
+    };
+
+type CheckinRecipientResolution =
+  | {
+      deleted: false;
+      userId: number;
+      detailMessage: string | null;
+    }
+  | {
+      deleted: true;
+      deletedReason: string;
+    };
 
 function buildGrantNotes(record: Pick<CheckinRecord, 'checkinMode' | 'blindboxTitle' | 'checkinDate'>): string {
   if (record.checkinMode === 'blindbox') {
@@ -308,7 +335,19 @@ export class CheckinService {
       existing.checkinMode === 'blindbox' ? '该盲盒签到记录已发放成功' : '该签到记录已发放成功'
     );
 
-    const grantResult = await this.grantCheckin(pending);
+    const grantResult = await this.grantCheckin(pending, {
+      allowMissingUserDeletion: true
+    });
+    if (grantResult.deleted) {
+      return {
+        item: null,
+        new_balance: null,
+        deleted: true,
+        deleted_reason: grantResult.deletedReason,
+        detail_message: null
+      };
+    }
+
     const updated = await this.repository.getCheckinById(pending.id);
     if (!updated) {
       throw new Error('签到记录读取失败，请稍后重试');
@@ -316,17 +355,43 @@ export class CheckinService {
 
     return {
       item: updated,
-      new_balance: grantResult.newBalance
+      new_balance: grantResult.newBalance,
+      deleted: false,
+      deleted_reason: null,
+      detail_message: grantResult.detailMessage
     };
   }
 
-  private async grantCheckin(record: CheckinRecord) {
+  private async grantCheckin(
+    record: CheckinRecord,
+    options: {
+      allowMissingUserDeletion?: boolean;
+    } = {}
+  ): Promise<CheckinGrantResult> {
+    const recipient = await this.resolveRecipientUserId(
+      record,
+      options.allowMissingUserDeletion ?? false
+    );
+    if (recipient.deleted) {
+      const deleted = await this.repository.deleteCheckinById(record.id);
+      if (!deleted) {
+        throw new ConflictError('签到记录状态已变更，请刷新后重试');
+      }
+
+      return {
+        deleted: true,
+        newBalance: null,
+        requestId: null,
+        deletedReason: recipient.deletedReason,
+        detailMessage: null
+      };
+    }
+
     let grantResult: Awaited<ReturnType<Sub2apiClientLike['addUserBalance']>>;
 
     try {
-      const userId = await this.resolveRecipientUserId(record);
       grantResult = await this.sub2api.addUserBalance({
-        userId,
+        userId: recipient.userId,
         amount: record.rewardBalance,
         notes: buildGrantNotes(record),
         idempotencyKey: record.idempotencyKey
@@ -343,16 +408,25 @@ export class CheckinService {
 
     await this.repository.markCheckinSuccess(record.id, grantResult.requestId);
     return {
+      deleted: false,
       newBalance: grantResult.newBalance ?? null,
-      requestId: grantResult.requestId
+      requestId: grantResult.requestId,
+      detailMessage: recipient.detailMessage
     };
   }
 
-  private async resolveRecipientUserId(record: CheckinRecord): Promise<number> {
+  private async resolveRecipientUserId(
+    record: CheckinRecord,
+    allowMissingUserDeletion: boolean
+  ): Promise<CheckinRecipientResolution> {
     try {
       const user = await this.sub2api.getAdminUserById(record.sub2apiUserId);
       if (user?.id) {
-        return user.id;
+        return {
+          deleted: false,
+          userId: user.id,
+          detailMessage: null
+        };
       }
     } catch (error) {
       if (!(error instanceof HttpError && error.status === 404)) {
@@ -362,9 +436,17 @@ export class CheckinService {
 
     const fallbackUser = await this.sub2api.findUserByEmail(record.sub2apiEmail);
     if (!fallbackUser?.id) {
+      if (allowMissingUserDeletion) {
+        return {
+          deleted: true,
+          deletedReason: '主站已无该邮箱用户，已自动移除这条补发记录'
+        };
+      }
+
       throw new HttpError(404, '', '主站用户不存在，可能已被删除或重建');
     }
 
+    let detailMessage: string | null = null;
     if (fallbackUser.id !== record.sub2apiUserId) {
       await this.repository.updateCheckinRecipient(record.id, {
         sub2apiUserId: fallbackUser.id,
@@ -372,9 +454,14 @@ export class CheckinService {
         sub2apiUsername: fallbackUser.username || fallbackUser.email,
         linuxdoSubject: extractLinuxDoSubjectFromEmail(fallbackUser.email)
       });
+      detailMessage = '旧主站用户 ID 已失效，已自动切换到当前主站账号后补发';
     }
 
-    return fallbackUser.id;
+    return {
+      deleted: false,
+      userId: fallbackUser.id,
+      detailMessage
+    };
   }
 
   async getAdminSettings() {

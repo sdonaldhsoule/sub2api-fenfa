@@ -278,6 +278,22 @@ export interface AdminCheckinList {
   pages: number;
 }
 
+export type AdminCheckinRetryResult =
+  | {
+      item: AdminCheckinItem;
+      new_balance: number | null;
+      deleted: false;
+      deleted_reason: null;
+      detail_message: string | null;
+    }
+  | {
+      item: null;
+      new_balance: null;
+      deleted: true;
+      deleted_reason: string;
+      detail_message: null;
+    };
+
 export interface AdminCheckinQuery {
   page?: number;
   page_size?: number;
@@ -340,6 +356,22 @@ export interface AdminRedeemClaimList {
   page_size: number;
   pages: number;
 }
+
+export type AdminRedeemClaimRetryResult =
+  | {
+      item: AdminRedeemClaimItem;
+      new_balance: number | null;
+      deleted: false;
+      deleted_reason: null;
+      detail_message: string | null;
+    }
+  | {
+      item: null;
+      new_balance: null;
+      deleted: true;
+      deleted_reason: string;
+      detail_message: null;
+    };
 
 export interface AdminRedeemClaimQuery {
   page?: number;

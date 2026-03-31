@@ -38,6 +38,8 @@ function createRepositoryMock() {
     markRedeemClaimSuccess: vi.fn(),
     markRedeemClaimFailed: vi.fn(),
     updateRedeemClaimRecipient: vi.fn(),
+    deleteRedeemClaimById: vi.fn(),
+    decrementRedeemCodeClaimedCount: vi.fn(),
     listUserRedeemClaims: vi.fn(),
     queryAdminRedeemClaims: vi.fn()
   };
@@ -371,7 +373,11 @@ describe('redeem service', () => {
       notes: '福利兑换码 福利100刀兑换',
       idempotencyKey: failedClaim.idempotencyKey
     });
-    expect(result.item.sub2apiUserId).toBe(99);
+    if (result.deleted) {
+      throw new Error('expected retry success');
+    }
+    expect(result.item!.sub2apiUserId).toBe(99);
+    expect(result.detail_message).toBe('旧主站用户 ID 已失效，已自动切换到当前主站账号后补发');
   });
 
   it('用户重复提交时会接管超时 pending 记录', async () => {
@@ -446,7 +452,44 @@ describe('redeem service', () => {
 
     expect(result).toEqual({
       item: successClaim,
-      new_balance: 456
+      new_balance: 456,
+      deleted: false,
+      deleted_reason: null,
+      detail_message: null
+    });
+  });
+
+  it('补发时如果主站已无该邮箱用户，会自动删除记录并回收兑换名额', async () => {
+    const failedClaim = createFailedClaim();
+    const pendingClaim: RedeemClaim = {
+      ...failedClaim,
+      grantStatus: 'pending',
+      grantError: ''
+    };
+
+    repository.getRedeemClaimByIdForUpdate
+      .mockResolvedValueOnce(failedClaim)
+      .mockResolvedValueOnce(pendingClaim);
+    repository.markRedeemClaimPendingRetry.mockResolvedValue(pendingClaim);
+    repository.deleteRedeemClaimById.mockResolvedValue(pendingClaim);
+    repository.decrementRedeemCodeClaimedCount.mockResolvedValue(createRedeemCode());
+    sub2api.getAdminUserById.mockResolvedValue(null);
+    sub2api.findUserByEmail.mockResolvedValue(null);
+
+    const result = await service.retryRedeemClaim(failedClaim.id);
+
+    expect(repository.deleteRedeemClaimById).toHaveBeenCalledWith(failedClaim.id, expect.anything());
+    expect(repository.decrementRedeemCodeClaimedCount).toHaveBeenCalledWith(
+      failedClaim.redeemCodeId,
+      expect.anything()
+    );
+    expect(sub2api.addUserBalance).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      item: null,
+      new_balance: null,
+      deleted: true,
+      deleted_reason: '主站已无该邮箱用户，已自动移除这条补发记录',
+      detail_message: null
     });
   });
 });

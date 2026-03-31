@@ -34,6 +34,7 @@ function createRepositoryMock() {
     markCheckinSuccess: vi.fn(),
     markCheckinFailed: vi.fn(),
     updateCheckinRecipient: vi.fn(),
+    deleteCheckinById: vi.fn(),
     listUserCheckins: vi.fn(),
     updateSettings: vi.fn(),
     getDailyStats: vi.fn(),
@@ -174,7 +175,10 @@ describe('checkin service', () => {
     expect(repository.markCheckinSuccess).toHaveBeenCalledWith(failedRecord.id, 'req-123');
     expect(result).toEqual({
       item: successRecord,
-      new_balance: 88
+      new_balance: 88,
+      deleted: false,
+      deleted_reason: null,
+      detail_message: null
     });
   });
 
@@ -256,7 +260,38 @@ describe('checkin service', () => {
       notes: `福利签到 ${failedRecord.checkinDate}`,
       idempotencyKey: failedRecord.idempotencyKey
     });
-    expect(result.item.sub2apiUserId).toBe(99);
+    if (result.deleted) {
+      throw new Error('expected retry success');
+    }
+    expect(result.item!.sub2apiUserId).toBe(99);
+    expect(result.detail_message).toBe('旧主站用户 ID 已失效，已自动切换到当前主站账号后补发');
+  });
+
+  it('补发时如果主站已无该邮箱用户，会自动删除失败记录', async () => {
+    const failedRecord = createNormalFailedRecord();
+    const pendingRecord: CheckinRecord = {
+      ...failedRecord,
+      grantStatus: 'pending',
+      grantError: ''
+    };
+
+    repository.getCheckinById.mockResolvedValueOnce(failedRecord);
+    repository.markCheckinPendingRetry.mockResolvedValue(pendingRecord);
+    repository.deleteCheckinById.mockResolvedValue(pendingRecord);
+    sub2api.getAdminUserById.mockResolvedValue(null);
+    sub2api.findUserByEmail.mockResolvedValue(null);
+
+    const result = await service.retryFailedCheckin(failedRecord.id);
+
+    expect(repository.deleteCheckinById).toHaveBeenCalledWith(failedRecord.id);
+    expect(sub2api.addUserBalance).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      item: null,
+      new_balance: null,
+      deleted: true,
+      deleted_reason: '主站已无该邮箱用户，已自动移除这条补发记录',
+      detail_message: null
+    });
   });
 
   it('成功状态不允许重复补发', async () => {

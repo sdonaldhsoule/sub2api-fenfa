@@ -158,6 +158,22 @@ export class RedeemRepository {
     return result.rowCount ? this.mapRedeemCode(result.rows[0]) : null;
   }
 
+  async decrementRedeemCodeClaimedCount(
+    id: number,
+    db: PoolClient
+  ): Promise<RedeemCode | null> {
+    const result = await this.query(
+      db,
+      `UPDATE welfare_redeem_codes
+       SET claimed_count = GREATEST(claimed_count - 1, 0),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [id]
+    );
+    return result.rowCount ? this.mapRedeemCode(result.rows[0]) : null;
+  }
+
   async getRedeemClaimById(
     id: number,
     db: DbLike = this.db
@@ -314,6 +330,21 @@ export class RedeemRepository {
         input.linuxdoSubject
       ]
     );
+  }
+
+  async deleteRedeemClaimById(
+    id: number,
+    db: DbLike = this.db
+  ): Promise<RedeemClaim | null> {
+    const result = await this.query(
+      db,
+      `DELETE FROM welfare_redeem_claims
+       WHERE id = $1
+         AND grant_status <> 'success'
+       RETURNING *`,
+      [id]
+    );
+    return result.rowCount ? this.mapRedeemClaim(result.rows[0]) : null;
   }
 
   async markRedeemClaimFailed(id: number, errorText: string): Promise<void> {

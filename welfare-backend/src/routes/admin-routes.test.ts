@@ -229,6 +229,28 @@ describe('adminRouter', () => {
     expect(response.body.message).toBe('SUB2API_GRANT_FAILED');
   });
 
+  it('POST /checkins/:id/retry 会返回自动删除结果', async () => {
+    mockCheckinService.retryFailedCheckin.mockResolvedValue({
+      item: null,
+      new_balance: null,
+      deleted: true,
+      deleted_reason: '主站已无该邮箱用户，已自动移除这条补发记录',
+      detail_message: null
+    });
+
+    const app = await createTestApp();
+    const response = await request(app).post('/api/admin/checkins/12/retry');
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      item: null,
+      new_balance: null,
+      deleted: true,
+      deleted_reason: '主站已无该邮箱用户，已自动移除这条补发记录',
+      detail_message: null
+    });
+  });
+
   it('GET /user-cleanup/candidates 返回候选用户分页结果', async () => {
     mockUserCleanupService.listCleanupCandidates.mockResolvedValue({
       items: [
@@ -385,5 +407,27 @@ describe('adminRouter', () => {
 
     expect(response.status).toBe(502);
     expect(response.body.message).toBe('SUB2API_GRANT_FAILED');
+  });
+
+  it('POST /redeem-claims/:id/retry 会返回自动删除结果', async () => {
+    mockRedeemService.retryRedeemClaim.mockResolvedValue({
+      item: null,
+      new_balance: null,
+      deleted: true,
+      deleted_reason: '主站已无该邮箱用户，已自动移除这条补发记录',
+      detail_message: null
+    });
+
+    const app = await createTestApp();
+    const response = await request(app).post('/api/admin/redeem-claims/5/retry');
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      item: null,
+      new_balance: null,
+      deleted: true,
+      deleted_reason: '主站已无该邮箱用户，已自动移除这条补发记录',
+      detail_message: null
+    });
   });
 });

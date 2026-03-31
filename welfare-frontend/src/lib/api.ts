@@ -5,6 +5,7 @@ import type {
   AdminCheckinItem,
   AdminCheckinList,
   AdminCheckinQuery,
+  AdminCheckinRetryResult,
   AdminOverview,
   AdminRiskEventList,
   AdminRiskEventQuery,
@@ -16,6 +17,7 @@ import type {
   AdminRedeemClaimItem,
   AdminRedeemClaimList,
   AdminRedeemClaimQuery,
+  AdminRedeemClaimRetryResult,
   AdminRedeemCodeItem,
   AdminSettings,
   AdminUserSearchItem,
@@ -221,10 +223,7 @@ export const api = {
     );
   },
   retryAdminCheckin: (id: number) =>
-    request<{
-      item: AdminCheckinItem;
-      new_balance: number | null;
-    }>(`/api/admin/checkins/${id}/retry`, {
+    request<AdminCheckinRetryResult>(`/api/admin/checkins/${id}/retry`, {
       method: 'POST'
     }),
   listWhitelist: () => request<WhitelistItem[]>('/api/admin/whitelist'),
@@ -367,10 +366,7 @@ export const api = {
     );
   },
   retryAdminRedeemClaim: (id: number) =>
-    request<{
-      item: AdminRedeemClaimItem;
-      new_balance: number | null;
-    }>(`/api/admin/redeem-claims/${id}/retry`, {
+    request<AdminRedeemClaimRetryResult>(`/api/admin/redeem-claims/${id}/retry`, {
       method: 'POST'
     }),
   listAdminResetRecords: (params: AdminResetRecordQuery = {}) => {
