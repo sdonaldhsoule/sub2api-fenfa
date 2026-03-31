@@ -4,6 +4,7 @@ import { Icon } from '../components/Icon';
 import { AdminBlindboxPanel } from '../components/AdminBlindboxPanel';
 import { AdminCheckinsPanel } from '../components/AdminCheckinsPanel';
 import { AdminDashboardOverview } from '../components/AdminDashboardOverview';
+import { AdminDistributionDetectionPanel } from '../components/AdminDistributionDetectionPanel';
 import { AdminResetRecordsPanel } from '../components/AdminResetRecordsPanel';
 import { AdminRedeemCodesPanel } from '../components/AdminRedeemCodesPanel';
 import { AdminRedeemClaimsPanel } from '../components/AdminRedeemClaimsPanel';
@@ -15,6 +16,7 @@ import type {
   AdminCheckinItem,
   AdminCheckinList,
   AdminCheckinQuery,
+  AdminRiskOverview,
   AdminRedeemClaimItem,
   AdminRedeemCodeItem,
   AdminSettings,
@@ -25,7 +27,15 @@ import type {
 import { motion } from 'framer-motion';
 import { pageVariants } from '../lib/animations';
 
-type AdminSection = 'overview' | 'checkins' | 'resetRecords' | 'redeemCodes' | 'redeemClaims' | 'userCleanup' | 'whitelist';
+type AdminSection =
+  | 'overview'
+  | 'distributionDetection'
+  | 'checkins'
+  | 'resetRecords'
+  | 'redeemCodes'
+  | 'redeemClaims'
+  | 'userCleanup'
+  | 'whitelist';
 
 const defaultCheckinFilters: AdminCheckinQuery = {
   page: 1,
@@ -52,6 +62,13 @@ const sections: Array<{
     title: '运营总览',
     description: '先看状态、异常和趋势。',
     icon: 'grid'
+  },
+  {
+    id: 'distributionDetection',
+    label: '分发检测',
+    title: '分发风控台',
+    description: '巡检异常分发、查看证据并执行人工恢复。',
+    icon: 'chart'
   },
   {
     id: 'checkins',
@@ -105,6 +122,7 @@ export function AdminPage() {
   const [dailyRewardMinInput, setDailyRewardMinInput] = useState('');
   const [dailyRewardMaxInput, setDailyRewardMaxInput] = useState('');
   const [stats, setStats] = useState<DailyStats | null>(null);
+  const [riskOverview, setRiskOverview] = useState<AdminRiskOverview | null>(null);
   const [checkinList, setCheckinList] = useState<AdminCheckinList | null>(null);
   const [checkinFilters, setCheckinFilters] = useState<AdminCheckinQuery>(defaultCheckinFilters);
   const [checkinFilterForm, setCheckinFilterForm] = useState(defaultCheckinFilterForm);
@@ -157,8 +175,9 @@ export function AdminPage() {
     setLoading(true);
     setError('');
     try {
-      const [overview, redeemCodes, failedCheckinsResp, failedRedeemClaimsResp] = await Promise.all([
+      const [overview, riskOverviewResp, redeemCodes, failedCheckinsResp, failedRedeemClaimsResp] = await Promise.all([
         api.getAdminOverview(),
+        api.getAdminRiskOverview(),
         api.listAdminRedeemCodes(),
         api.listAdminCheckins({ page: 1, page_size: 4, grant_status: 'failed' }),
         api.listAdminRedeemClaims({ page: 1, page_size: 4, grant_status: 'failed' })
@@ -168,6 +187,7 @@ export function AdminPage() {
       setDailyRewardMaxInput(String(overview.settings.daily_reward_max_balance));
       setStats(overview.stats);
       setWhitelist(overview.whitelist);
+      setRiskOverview(riskOverviewResp);
       setOverviewRedeemCodes(redeemCodes);
       setOverviewFailedCheckins(failedCheckinsResp.items);
       setOverviewFailedCheckinsTotal(failedCheckinsResp.total);
@@ -498,6 +518,8 @@ export function AdminPage() {
                 <span className="admin-nav-count">
                   {item.id === 'checkins'
                     ? stats?.total_checkins ?? 0
+                    : item.id === 'distributionDetection'
+                      ? riskOverview?.open_event_count ?? 0
                     : item.id === 'resetRecords'
                         ? settings?.reset_enabled
                           ? 'ON'
@@ -567,6 +589,16 @@ export function AdminPage() {
               onOpenCheckins={() => setActiveSection('checkins')}
               onOpenRedeemCodes={() => setActiveSection('redeemCodes')}
               onOpenRedeemClaims={() => setActiveSection('redeemClaims')}
+            />
+          )}
+
+          {activeSection === 'distributionDetection' && (
+            <AdminDistributionDetectionPanel
+              overview={riskOverview}
+              onOverviewChange={setRiskOverview}
+              onUnauthorized={redirectToLogin}
+              onError={setError}
+              onSuccess={setMessage}
             />
           )}
 

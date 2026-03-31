@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import type { SessionUser, VerifiedSession } from '../types/domain.js';
+import type { SessionTokenUser, SessionUser, VerifiedSession } from '../types/domain.js';
 import { config } from '../config.js';
 import { randomBase64Url } from '../utils/oauth.js';
 
@@ -10,6 +10,7 @@ interface SessionClaims {
   semail: string;
   uname: string;
   ava: string | null;
+  sver?: number;
 }
 
 type DecodedSessionClaims = jwt.JwtPayload & SessionClaims;
@@ -19,7 +20,7 @@ function getLegacyTokenId(token: string): string {
 }
 
 export class SessionService {
-  sign(user: SessionUser): string {
+  sign(user: SessionTokenUser): string {
     const expiresIn = config.WELFARE_JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'];
     return jwt.sign(
       {
@@ -27,7 +28,8 @@ export class SessionService {
         subid: user.linuxdoSubject,
         semail: user.email,
         uname: user.username,
-        ava: user.avatarUrl ?? null
+        ava: user.avatarUrl ?? null,
+        sver: user.sessionVersion
       } satisfies SessionClaims,
       config.WELFARE_JWT_SECRET,
       {
@@ -53,6 +55,7 @@ export class SessionService {
         typeof decoded.subid === 'string'
       ) ||
       (decoded.ava !== null && typeof decoded.ava !== 'string') ||
+      (decoded.sver != null && (!Number.isInteger(decoded.sver) || decoded.sver < 1)) ||
       typeof decoded.exp !== 'number'
     ) {
       throw new Error('session token claims invalid');
@@ -73,7 +76,8 @@ export class SessionService {
         typeof decoded.jti === 'string' && decoded.jti.trim() !== ''
           ? decoded.jti
           : getLegacyTokenId(token),
-      expiresAtMs: decoded.exp * 1000
+      expiresAtMs: decoded.exp * 1000,
+      sessionVersion: decoded.sver ?? 1
     };
   }
 }

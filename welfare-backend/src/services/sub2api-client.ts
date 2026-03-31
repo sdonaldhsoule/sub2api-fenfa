@@ -8,17 +8,39 @@ interface Sub2apiEnvelope<T> {
   data?: T;
 }
 
-interface AdminUserLite {
+interface PaginatedItems<T> {
+  items: T[];
+  total: number;
+  page?: number;
+  page_size?: number;
+  pages?: number;
+}
+
+export interface AdminUserLite {
   id: number;
   email: string;
   username?: string;
   balance?: number;
+  role?: 'admin' | 'user';
+  status?: 'active' | 'disabled';
 }
+
+export type AdminUserRecord = AdminUserLite;
 
 interface AdminUsersPage {
   items: AdminUserLite[];
   total: number;
 }
+
+export interface AdminUsageLog {
+  id: number;
+  userId: number;
+  ipAddress: string | null;
+  createdAt: string;
+  user: AdminUserLite | null;
+}
+
+export type AdminUsageLogRecord = AdminUsageLog;
 
 interface CurrentUserProfile {
   id: number;
@@ -73,6 +95,9 @@ export class Sub2apiClient {
     }
 
     const record = input as Record<string, unknown>;
+    const rawRole = typeof record.role === 'string' ? record.role.trim().toLowerCase() : '';
+    const rawStatus =
+      typeof record.status === 'string' ? record.status.trim().toLowerCase() : '';
     return {
       id: Number(record.id),
       email: String(record.email ?? ''),
@@ -85,7 +110,35 @@ export class Sub2apiClient {
           ? record.balance
           : typeof record.balance === 'string'
             ? Number(record.balance)
-            : undefined
+            : undefined,
+      role: rawRole === 'admin' || rawRole === 'user' ? rawRole : undefined,
+      status:
+        rawStatus === 'active' || rawStatus === 'disabled'
+          ? rawStatus
+          : undefined
+    };
+  }
+
+  private parseAdminUsageLog(input: unknown): AdminUsageLog {
+    if (!input || typeof input !== 'object') {
+      throw new Sub2apiResponseError('sub2api usage 记录格式非法');
+    }
+
+    const record = input as Record<string, unknown>;
+    const rawIpAddress =
+      typeof record.ip_address === 'string'
+        ? record.ip_address.trim()
+        : null;
+
+    return {
+      id: Number(record.id),
+      userId: Number(record.user_id),
+      ipAddress: rawIpAddress ? rawIpAddress : null,
+      createdAt: String(record.created_at ?? ''),
+      user:
+        record.user && typeof record.user === 'object'
+          ? this.parseAdminUserLite(record.user)
+          : null
     };
   }
 
@@ -382,6 +435,118 @@ export class Sub2apiClient {
       return {
         message: envelope.data?.message || envelope.message || '用户已删除'
       };
+    });
+  }
+
+  async listAdminUsageLogs(params: {
+    page?: number;
+    pageSize?: number;
+    userId?: number;
+    startDate?: string;
+    endDate?: string;
+    timezone?: string;
+    exactTotal?: boolean;
+  }): Promise<{
+    items: AdminUsageLog[];
+    total: number;
+    page: number;
+    pageSize: number;
+    pages: number;
+  }> {
+    return this.withRetries('查询 sub2api usage 记录', async () => {
+      const query = new URLSearchParams({
+        page: String(params.page ?? 1),
+        page_size: String(params.pageSize ?? USER_PAGE_SIZE)
+      });
+      if (params.userId) {
+        query.set('user_id', String(params.userId));
+      }
+      if (params.startDate) {
+        query.set('start_date', params.startDate);
+      }
+      if (params.endDate) {
+        query.set('end_date', params.endDate);
+      }
+      if (params.timezone) {
+        query.set('timezone', params.timezone);
+      }
+      if (params.exactTotal != null) {
+        query.set('exact_total', String(params.exactTotal));
+      }
+
+      const response = await fetchWithTimeout(
+        `${config.SUB2API_BASE_URL}/api/v1/admin/usage?${query.toString()}`,
+        {
+          method: 'GET',
+          headers: this.baseHeaders
+        },
+        config.SUB2API_TIMEOUT_MS
+      );
+      const body = await response.text();
+      if (!response.ok) {
+        throw new HttpError(response.status, body, `查询 sub2api usage 失败: ${response.status}`);
+      }
+
+      const envelope = this.parseEnvelope<PaginatedItems<unknown>>(body, '查询 sub2api usage 失败');
+      if (envelope.code !== 0 || !envelope.data) {
+        throw new Sub2apiResponseError(
+          `查询 sub2api usage 失败：${envelope.message || 'unknown error'}`,
+          body
+        );
+      }
+
+      const items = Array.isArray(envelope.data.items) ? envelope.data.items : [];
+      const page = Number(envelope.data.page ?? params.page ?? 1);
+      const pageSize = Number(envelope.data.page_size ?? params.pageSize ?? USER_PAGE_SIZE);
+      const total = Number(envelope.data.total ?? items.length);
+      const pages = Number(
+        envelope.data.pages ?? Math.max(1, Math.ceil(total / Math.max(1, pageSize)))
+      );
+
+      return {
+        items: items.map((item) => this.parseAdminUsageLog(item)),
+        total,
+        page,
+        pageSize,
+        pages
+      };
+    });
+  }
+
+  async updateAdminUserStatus(
+    userId: number,
+    status: 'active' | 'disabled'
+  ): Promise<AdminUserLite> {
+    return this.withRetries(`更新用户 #${userId} 状态`, async () => {
+      const response = await fetchWithTimeout(
+        `${config.SUB2API_BASE_URL}/api/v1/admin/users/${userId}`,
+        {
+          method: 'PUT',
+          headers: this.baseHeaders,
+          body: JSON.stringify({
+            status
+          })
+        },
+        config.SUB2API_TIMEOUT_MS
+      );
+      const body = await response.text();
+      if (!response.ok) {
+        throw new HttpError(
+          response.status,
+          body,
+          `更新 sub2api 用户状态失败: ${response.status}`
+        );
+      }
+
+      const envelope = this.parseEnvelope<AdminUserLite>(body, '更新 sub2api 用户状态失败');
+      if (envelope.code !== 0 || !envelope.data) {
+        throw new Sub2apiResponseError(
+          `更新 sub2api 用户状态失败：${envelope.message || 'unknown error'}`,
+          body
+        );
+      }
+
+      return this.parseAdminUserLite(envelope.data);
     });
   }
 }

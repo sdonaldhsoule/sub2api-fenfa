@@ -148,6 +148,93 @@ export interface AdminOverview {
   whitelist: WhitelistItem[];
 }
 
+export interface AdminRiskScanState {
+  last_started_at: string | null;
+  last_finished_at: string | null;
+  last_status: 'idle' | 'running' | 'success' | 'failed';
+  last_error: string;
+  last_trigger_source: string;
+  updated_at: string;
+}
+
+export interface AdminRiskOverview {
+  active_event_count: number;
+  pending_release_count: number;
+  open_event_count: number;
+  last_scan: AdminRiskScanState;
+}
+
+export interface AdminRiskEvent {
+  id: number;
+  sub2apiUserId: number;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
+  sub2apiRole: 'admin' | 'user';
+  sub2apiStatus: string;
+  status: 'active' | 'pending_release' | 'released';
+  windowStartedAt: string;
+  windowEndedAt: string;
+  distinctIpCount: number;
+  ipSamples: string[];
+  firstHitAt: string;
+  lastHitAt: string;
+  minimumLockUntil: string;
+  mainSiteSyncStatus: 'pending' | 'success' | 'failed';
+  mainSiteSyncError: string;
+  lastScanStatus: 'success' | 'failed';
+  lastScanError: string;
+  lastScanSource: string;
+  lastScannedAt: string | null;
+  releasedBySub2apiUserId: number | null;
+  releasedByEmail: string;
+  releasedByUsername: string;
+  releaseReason: string;
+  releasedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminRiskEventList {
+  items: AdminRiskEvent[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export interface AdminRiskEventQuery {
+  page?: number;
+  page_size?: number;
+  status?: 'active' | 'pending_release' | 'released';
+}
+
+export interface AdminRiskScanResult {
+  scanned_log_count: number;
+  matched_user_count: number;
+  created_event_count: number;
+  refreshed_event_count: number;
+  skipped_admin_count: number;
+  retried_main_site_count: number;
+  last_scan: AdminRiskScanInfo;
+}
+
+export interface AdminRiskEventQuery {
+  page?: number;
+  page_size?: number;
+  status?: 'active' | 'pending_release' | 'released';
+}
+
+export interface AdminRiskScanResult {
+  scanned_log_count: number;
+  matched_user_count: number;
+  created_event_count: number;
+  refreshed_event_count: number;
+  skipped_admin_count: number;
+  retried_main_site_count: number;
+  last_scan: AdminRiskScanState;
+}
+
 export interface AdminCheckinItem {
   id: number;
   sub2apiUserId: number;
@@ -334,4 +421,59 @@ export interface WhitelistItem {
   linuxdoSubject: string | null;
   notes: string;
   createdAt: string;
+}
+
+export interface AdminRiskScanInfo {
+  last_started_at: string | null;
+  last_finished_at: string | null;
+  last_status: 'idle' | 'running' | 'success' | 'failed';
+  last_error: string;
+  last_trigger_source: string;
+  updated_at: string;
+}
+
+export interface AdminRiskOverview {
+  active_event_count: number;
+  pending_release_count: number;
+  open_event_count: number;
+  last_scan: AdminRiskScanInfo;
+}
+
+export interface AdminRiskEvent {
+  id: number;
+  sub2apiUserId: number;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
+  sub2apiRole: 'admin' | 'user';
+  sub2apiStatus: string;
+  status: 'active' | 'pending_release' | 'released';
+  windowStartedAt: string;
+  windowEndedAt: string;
+  distinctIpCount: number;
+  ipSamples: string[];
+  firstHitAt: string;
+  lastHitAt: string;
+  minimumLockUntil: string;
+  mainSiteSyncStatus: 'pending' | 'success' | 'failed';
+  mainSiteSyncError: string;
+  lastScanStatus: 'success' | 'failed';
+  lastScanError: string;
+  lastScanSource: string;
+  lastScannedAt: string | null;
+  releasedBySub2apiUserId: number | null;
+  releasedByEmail: string;
+  releasedByUsername: string;
+  releaseReason: string;
+  releasedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminRiskEventList {
+  items: AdminRiskEvent[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
 }

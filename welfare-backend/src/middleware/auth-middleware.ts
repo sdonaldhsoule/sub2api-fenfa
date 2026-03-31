@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { distributionDetectionService } from '../services/distribution-detection-service.js';
 import { sessionService } from '../services/session-service.js';
 import { sessionStateService } from '../services/session-state-service.js';
 
@@ -41,14 +42,40 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
 
-  void sessionStateService
-    .isTokenRevoked(verifiedSession.tokenId)
-    .then((isRevoked) => {
+  void Promise.all([
+    sessionStateService.isTokenRevoked(verifiedSession.tokenId),
+    sessionStateService.getSessionVersion(verifiedSession.user.sub2apiUserId)
+  ])
+    .then(async ([isRevoked, currentSessionVersion]) => {
       if (isRevoked) {
         res.status(401).json({
           code: 401,
           message: 'REVOKED_TOKEN',
           detail: '当前登录已退出，请重新登录'
+        });
+        return;
+      }
+
+      if (currentSessionVersion !== verifiedSession.sessionVersion) {
+        res.status(401).json({
+          code: 401,
+          message: 'SESSION_VERSION_MISMATCH',
+          detail: '登录已失效，请重新登录'
+        });
+        return;
+      }
+
+      const accessDecision = await distributionDetectionService.evaluateAccess(
+        verifiedSession.user,
+        'auth'
+      );
+      if (accessDecision.blockedEvent) {
+        res.status(403).json({
+          code: 403,
+          message: 'RISK_BLOCKED',
+          detail: distributionDetectionService.getBlockedDetail(
+            accessDecision.blockedEvent
+          )
         });
         return;
       }

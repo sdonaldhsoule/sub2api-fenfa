@@ -11,9 +11,11 @@ const {
   mockHasLegacyAdminSubject,
   mockIssueArtifact,
   mockRevokeToken,
+  mockGetSessionVersion,
   mockSessionService,
   mockSub2apiClient,
-  mockLinuxDoOAuthService
+  mockLinuxDoOAuthService,
+  mockDistributionDetectionService
 } = vi.hoisted(() => ({
   authContext: {
     user: {
@@ -31,8 +33,10 @@ const {
   mockHasLegacyAdminSubject: vi.fn(),
   mockIssueArtifact: vi.fn(),
   mockRevokeToken: vi.fn(),
+  mockGetSessionVersion: vi.fn(),
   mockSessionService: {
-    sign: vi.fn()
+    sign: vi.fn(),
+    verifySession: vi.fn()
   },
   mockSub2apiClient: {
     findUserByEmail: vi.fn(),
@@ -41,6 +45,10 @@ const {
   mockLinuxDoOAuthService: {
     exchangeCode: vi.fn(),
     fetchUserInfo: vi.fn()
+  },
+  mockDistributionDetectionService: {
+    evaluateAccess: vi.fn(),
+    getBlockedDetail: vi.fn().mockReturnValue('blocked')
   }
 }));
 
@@ -62,7 +70,8 @@ vi.mock('../services/checkin-service.js', () => ({
 
 vi.mock('../services/session-state-service.js', () => ({
   sessionStateService: {
-    revokeToken: mockRevokeToken
+    revokeToken: mockRevokeToken,
+    getSessionVersion: mockGetSessionVersion
   }
 }));
 
@@ -75,6 +84,12 @@ vi.mock('../services/auth-artifact-service.js', () => ({
 
 vi.mock('../services/session-service.js', () => ({
   sessionService: mockSessionService
+}));
+
+vi.mock('../services/distribution-detection-service.js', () => ({
+  distributionDetectionService: mockDistributionDetectionService,
+  RiskConflictError: class extends Error {},
+  RiskNotFoundError: class extends Error {}
 }));
 
 vi.mock('../services/sub2api-client.js', () => ({
@@ -137,14 +152,23 @@ describe('authRouter', () => {
     mockHasLegacyAdminSubject.mockReset();
     mockIssueArtifact.mockReset();
     mockRevokeToken.mockReset();
+    mockGetSessionVersion.mockReset();
     mockSessionService.sign.mockReset();
+    mockSessionService.verifySession.mockReset();
     mockSub2apiClient.findUserByEmail.mockReset();
     mockSub2apiClient.getCurrentUser.mockReset();
     mockLinuxDoOAuthService.exchangeCode.mockReset();
     mockLinuxDoOAuthService.fetchUserInfo.mockReset();
+    mockDistributionDetectionService.evaluateAccess.mockReset();
+    mockDistributionDetectionService.getBlockedDetail.mockClear();
 
     mockConsumeArtifact.mockResolvedValue('consumed');
     mockIssueArtifact.mockResolvedValue(undefined);
+    mockGetSessionVersion.mockResolvedValue(1);
+    mockDistributionDetectionService.evaluateAccess.mockResolvedValue({
+      blockedEvent: null,
+      sessionInvalidated: false
+    });
   });
 
   afterEach(() => {
@@ -197,6 +221,18 @@ describe('authRouter', () => {
       },
       process.env.WELFARE_JWT_SECRET!
     );
+    mockSessionService.verifySession.mockReturnValue({
+      user: {
+        sub2apiUserId: 7,
+        email: 'normal-user@example.com',
+        linuxdoSubject: null,
+        username: 'normal-user',
+        avatarUrl: null
+      },
+      tokenId: 'handoff-session-id',
+      expiresAtMs: Date.now() + 60_000,
+      sessionVersion: 1
+    });
 
     const app = await createTestApp();
     const response = await request(app)
@@ -272,7 +308,8 @@ describe('authRouter', () => {
       email: 'normal-user@example.com',
       linuxdoSubject: null,
       username: 'normal-user',
-      avatarUrl: null
+      avatarUrl: null,
+      sessionVersion: 1
     });
     expect(response.body.data).toEqual({
       session_token: 'bridge-session-token',

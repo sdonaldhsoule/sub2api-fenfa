@@ -7,6 +7,7 @@ const { mockUseAuth, mockApi } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockApi: {
     getAdminOverview: vi.fn(),
+    getAdminRiskOverview: vi.fn(),
     listAdminRedeemCodes: vi.fn(),
     listAdminCheckins: vi.fn(),
     listAdminRedeemClaims: vi.fn(),
@@ -38,6 +39,10 @@ vi.mock('../components/AdminDashboardOverview', () => ({
 
 vi.mock('../components/AdminCheckinsPanel', () => ({
   AdminCheckinsPanel: () => <div>签到模块</div>
+}));
+
+vi.mock('../components/AdminDistributionDetectionPanel', () => ({
+  AdminDistributionDetectionPanel: () => <div>分发检测模块</div>
 }));
 
 vi.mock('../components/AdminBlindboxPanel', () => ({
@@ -102,6 +107,19 @@ describe('AdminPage dashboard', () => {
       },
       whitelist: []
     });
+    mockApi.getAdminRiskOverview.mockResolvedValue({
+      active_event_count: 1,
+      pending_release_count: 2,
+      open_event_count: 3,
+      last_scan: {
+        last_started_at: null,
+        last_finished_at: null,
+        last_status: 'success',
+        last_error: '',
+        last_trigger_source: 'scheduled',
+        updated_at: '2026-03-31T00:00:00.000Z'
+      }
+    });
     mockApi.listAdminRedeemCodes.mockResolvedValue([]);
     mockApi.listAdminCheckins.mockResolvedValue({
       items: [],
@@ -150,5 +168,16 @@ describe('AdminPage dashboard', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /用户清理/i }));
     expect(await screen.findByText('用户清理模块')).toBeInTheDocument();
+  });
+
+  it('可以切换到分发检测分区', async () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AdminPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /分发检测/i }));
+    expect(await screen.findByText('分发检测模块')).toBeInTheDocument();
   });
 });

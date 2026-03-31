@@ -6,6 +6,10 @@ import type {
   AdminCheckinList,
   AdminCheckinQuery,
   AdminOverview,
+  AdminRiskEventList,
+  AdminRiskEventQuery,
+  AdminRiskOverview,
+  AdminRiskScanResult,
   AdminResetRecordList,
   AdminResetRecordQuery,
   AdminRedeemClaimItem,
@@ -194,6 +198,7 @@ export const api = {
     }),
   getRedeemHistory: () => request<RedeemHistoryItem[]>('/api/redeem-codes/history'),
   getAdminOverview: () => request<AdminOverview>('/api/admin/overview'),
+  getAdminRiskOverview: () => request<AdminRiskOverview>('/api/admin/risk-events/overview'),
   getAdminSettings: () => request<AdminSettings>('/api/admin/settings'),
   updateAdminSettings: (payload: Partial<AdminSettings>) =>
     request<AdminSettings>('/api/admin/settings', {
@@ -221,6 +226,7 @@ export const api = {
     }>(`/api/admin/checkins/${id}/retry`, {
       method: 'POST'
     }),
+  getRiskOverview: () => request<AdminRiskOverview>('/api/admin/risk-events/overview'),
   listWhitelist: () => request<WhitelistItem[]>('/api/admin/whitelist'),
   searchAdminSub2apiUsers: (query: string) =>
     request<AdminUserSearchItem[]>(
@@ -246,6 +252,25 @@ export const api = {
       body: JSON.stringify({
         user_ids: userIds
       })
+    }),
+  listAdminRiskEvents: (params: AdminRiskEventQuery = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.page_size) query.set('page_size', String(params.page_size));
+    if (params.status) query.set('status', params.status);
+    const suffix = query.toString();
+    return request<AdminRiskEventList>(
+      `/api/admin/risk-events${suffix ? `?${suffix}` : ''}`
+    );
+  },
+  scanAdminRiskEvents: () =>
+    request<AdminRiskScanResult>('/api/admin/risk-events/scan', {
+      method: 'POST'
+    }),
+  releaseAdminRiskEvent: (id: number, payload: { reason?: string } = {}) =>
+    request<{ item: AdminRiskEventList['items'][number] }>(`/api/admin/risk-events/${id}/release`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
     }),
   addWhitelist: (payload: {
     sub2api_user_id: number;

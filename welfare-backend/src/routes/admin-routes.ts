@@ -22,6 +22,11 @@ import {
 import { resetService } from '../services/reset-service.js';
 import { userCleanupService } from '../services/user-cleanup-service.js';
 import {
+  distributionDetectionService,
+  RiskConflictError,
+  RiskNotFoundError
+} from '../services/distribution-detection-service.js';
+import {
   redeemService,
   ConflictError as RedeemConflictError,
   ForbiddenError as RedeemForbiddenError,
@@ -123,6 +128,96 @@ function toAdminResetRecordPayload(record: ResetRecord) {
     sub2apiRequestId: record.sub2apiRequestId,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt
+  };
+}
+
+function toAdminRiskEventPayload(event: {
+  id: number;
+  sub2apiUserId: number;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
+  sub2apiRole: 'admin' | 'user';
+  sub2apiStatus: string;
+  status: 'active' | 'pending_release' | 'released';
+  windowStartedAt: string;
+  windowEndedAt: string;
+  distinctIpCount: number;
+  ipSamples: string[];
+  firstHitAt: string;
+  lastHitAt: string;
+  minimumLockUntil: string;
+  mainSiteSyncStatus: 'pending' | 'success' | 'failed';
+  mainSiteSyncError: string;
+  lastScanStatus: 'success' | 'failed';
+  lastScanError: string;
+  lastScanSource: string;
+  lastScannedAt: string | null;
+  releasedBySub2apiUserId: number | null;
+  releasedByEmail: string;
+  releasedByUsername: string;
+  releaseReason: string;
+  releasedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}) {
+  return {
+    id: event.id,
+    sub2apiUserId: event.sub2apiUserId,
+    sub2apiEmail: event.sub2apiEmail,
+    sub2apiUsername: event.sub2apiUsername,
+    linuxdoSubject: event.linuxdoSubject,
+    sub2apiRole: event.sub2apiRole,
+    sub2apiStatus: event.sub2apiStatus,
+    status: event.status,
+    windowStartedAt: event.windowStartedAt,
+    windowEndedAt: event.windowEndedAt,
+    distinctIpCount: event.distinctIpCount,
+    ipSamples: event.ipSamples,
+    firstHitAt: event.firstHitAt,
+    lastHitAt: event.lastHitAt,
+    minimumLockUntil: event.minimumLockUntil,
+    mainSiteSyncStatus: event.mainSiteSyncStatus,
+    mainSiteSyncError: event.mainSiteSyncError,
+    lastScanStatus: event.lastScanStatus,
+    lastScanError: event.lastScanError,
+    lastScanSource: event.lastScanSource,
+    lastScannedAt: event.lastScannedAt,
+    releasedBySub2apiUserId: event.releasedBySub2apiUserId,
+    releasedByEmail: event.releasedByEmail,
+    releasedByUsername: event.releasedByUsername,
+    releaseReason: event.releaseReason,
+    releasedAt: event.releasedAt,
+    createdAt: event.createdAt,
+    updatedAt: event.updatedAt
+  };
+}
+
+function toAdminRiskOverviewPayload(overview: {
+  activeEventCount: number;
+  pendingReleaseCount: number;
+  openEventCount: number;
+  lastScan: {
+    lastStartedAt: string | null;
+    lastFinishedAt: string | null;
+    lastStatus: 'idle' | 'running' | 'success' | 'failed';
+    lastError: string;
+    lastTriggerSource: string;
+    updatedAt: string;
+  };
+}) {
+  return {
+    active_event_count: overview.activeEventCount,
+    pending_release_count: overview.pendingReleaseCount,
+    open_event_count: overview.openEventCount,
+    last_scan: {
+      last_started_at: overview.lastScan.lastStartedAt,
+      last_finished_at: overview.lastScan.lastFinishedAt,
+      last_status: overview.lastScan.lastStatus,
+      last_error: overview.lastScan.lastError,
+      last_trigger_source: overview.lastScan.lastTriggerSource,
+      updated_at: overview.lastScan.updatedAt
+    }
   };
 }
 
@@ -265,6 +360,16 @@ const userCleanupCandidatesQuerySchema = z.object({
 
 const userCleanupDeleteSchema = z.object({
   user_ids: z.array(z.number().int().positive()).min(1).max(200)
+});
+
+const riskEventsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  page_size: z.coerce.number().int().positive().max(200).optional(),
+  status: z.enum(['active', 'pending_release', 'released']).optional()
+});
+
+const riskReleaseSchema = z.object({
+  reason: z.string().max(500).optional()
 });
 
 const blindboxItemCreateSchema = z.object({
@@ -515,6 +620,91 @@ adminRouter.get('/user-cleanup/candidates', asyncHandler(async (req, res) => {
     page_size: pageSize,
     pages: Math.max(1, Math.ceil(result.total / pageSize))
   });
+}));
+
+adminRouter.get('/risk-events/overview', asyncHandler(async (_req, res) => {
+  const overview = await distributionDetectionService.getOverview();
+  ok(res, toAdminRiskOverviewPayload(overview));
+}));
+
+adminRouter.get('/risk-events', asyncHandler(async (req, res) => {
+  const parsed = riskEventsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    fail(res, 400, 'BAD_REQUEST', '查询参数非法');
+    return;
+  }
+
+  const page = parsed.data.page ?? 1;
+  const pageSize = parsed.data.page_size ?? 20;
+  const result = await distributionDetectionService.listEvents({
+    page,
+    pageSize,
+    status: parsed.data.status
+  });
+
+  ok(res, {
+    items: result.items.map((item) => toAdminRiskEventPayload(item)),
+    total: result.total,
+    page,
+    page_size: pageSize,
+    pages: Math.max(1, Math.ceil(result.total / pageSize))
+  });
+}));
+
+adminRouter.post('/risk-events/scan', asyncHandler(async (_req, res) => {
+  const result = await distributionDetectionService.runBatchScan('manual');
+  ok(res, {
+    scanned_log_count: result.scannedLogCount,
+    matched_user_count: result.matchedUserCount,
+    created_event_count: result.createdEventCount,
+    refreshed_event_count: result.refreshedEventCount,
+    skipped_admin_count: result.skippedAdminCount,
+    retried_main_site_count: result.retriedMainSiteCount,
+    last_scan: {
+      last_started_at: result.lastScan.lastStartedAt,
+      last_finished_at: result.lastScan.lastFinishedAt,
+      last_status: result.lastScan.lastStatus,
+      last_error: result.lastScan.lastError,
+      last_trigger_source: result.lastScan.lastTriggerSource,
+      updated_at: result.lastScan.updatedAt
+    }
+  });
+}));
+
+adminRouter.post('/risk-events/:id/release', asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    fail(res, 400, 'BAD_REQUEST', 'id 非法');
+    return;
+  }
+
+  const parsed = riskReleaseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    fail(res, 400, 'BAD_REQUEST', parsed.error.issues[0]?.message ?? '参数非法');
+    return;
+  }
+
+  try {
+    const item = await distributionDetectionService.releaseEvent(
+      id,
+      req.sessionUser!,
+      parsed.data.reason?.trim() ?? ''
+    );
+    ok(res, {
+      item: toAdminRiskEventPayload(item)
+    });
+  } catch (error) {
+    if (error instanceof RiskNotFoundError) {
+      fail(res, 404, 'NOT_FOUND', error.message);
+      return;
+    }
+    if (error instanceof RiskConflictError) {
+      fail(res, 409, 'RISK_CONFLICT', error.message);
+      return;
+    }
+    console.error('[admin] 手动恢复风险事件失败', error);
+    fail(res, 500, 'RISK_RELEASE_FAILED', '手动恢复失败，请稍后重试');
+  }
 }));
 
 adminRouter.post('/user-cleanup/delete', asyncHandler(async (req, res) => {

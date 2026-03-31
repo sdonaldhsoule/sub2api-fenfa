@@ -783,6 +783,56 @@ h3 {
   grid-template-columns: minmax(180px, 1.4fr) minmax(120px, 0.95fr) minmax(100px, 0.7fr) minmax(150px, 0.95fr) minmax(220px, 1.5fr) auto;
 }
 
+.admin-risk-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.admin-risk-overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+.admin-risk-overview-card strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.admin-risk-item {
+  grid-template-columns:
+    minmax(180px, 1.15fr)
+    minmax(140px, 0.95fr)
+    minmax(220px, 1.4fr)
+    minmax(180px, 1.1fr)
+    minmax(180px, 1fr)
+    auto;
+}
+
+.admin-risk-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-risk-chip {
+  padding-inline: 12px;
+}
+
+.admin-risk-actions {
+  justify-content: flex-end;
+}
+
+.admin-risk-error-text {
+  word-break: break-word;
+}
+
 .admin-redeem-code-item {
   grid-template-columns: minmax(180px, 1.35fr) minmax(110px, 0.75fr) minmax(120px, 0.9fr) minmax(120px, 0.85fr) minmax(180px, 1.1fr) auto;
 }

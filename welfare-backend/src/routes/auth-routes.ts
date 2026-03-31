@@ -7,6 +7,10 @@ import { linuxDoOAuthService } from '../services/linuxdo-oauth-service.js';
 import { authArtifactService } from '../services/auth-artifact-service.js';
 import { sessionService } from '../services/session-service.js';
 import { sessionStateService } from '../services/session-state-service.js';
+import {
+  distributionRiskService,
+  RiskBlockedError
+} from '../services/distribution-risk-service.js';
 import { sub2apiClient } from '../services/sub2api-client.js';
 import { welfareRepository } from '../services/checkin-service.js';
 import { fail, ok } from '../utils/response.js';
@@ -65,19 +69,21 @@ const authRateLimit = createRateLimitMiddleware({
 
 export const authRouter = Router();
 
-function createSessionToken(input: {
+async function createSessionToken(input: {
   sub2apiUserId: number;
   email: string;
   username: string;
   linuxdoSubject: string | null;
   avatarUrl?: string | null;
-}): string {
+}): Promise<string> {
+  const sessionVersion = await sessionStateService.getSessionVersion(input.sub2apiUserId);
   return sessionService.sign({
     sub2apiUserId: input.sub2apiUserId,
     email: input.email,
     linuxdoSubject: input.linuxdoSubject,
     username: input.username,
-    avatarUrl: input.avatarUrl ?? null
+    avatarUrl: input.avatarUrl ?? null,
+    sessionVersion
   });
 }
 
@@ -187,7 +193,28 @@ authRouter.get('/linuxdo/callback', asyncHandler(async (req, res) => {
       return;
     }
 
-    const token = createSessionToken({
+    try {
+      await distributionRiskService.assertAccessAllowed(
+        {
+          sub2apiUserId: sub2apiUser.id,
+          email,
+          username: profile.username || sub2apiUser.username || email,
+          linuxdoSubject: profile.subject
+        },
+        {
+          source: 'linuxdo_callback',
+          recheck: true
+        }
+      );
+    } catch (error) {
+      if (error instanceof RiskBlockedError) {
+        sendFrontendError('RISK_BLOCKED', error.message);
+        return;
+      }
+      throw error;
+    }
+
+    const token = await createSessionToken({
       sub2apiUserId: sub2apiUser.id,
       email,
       linuxdoSubject: profile.subject,
@@ -263,6 +290,39 @@ authRouter.post('/session-handoff/exchange', authRateLimit, asyncHandler(async (
     return;
   }
 
+  const verifiedSession = (() => {
+    try {
+      return sessionService.verifySession(handoff.token);
+    } catch {
+      fail(res, 401, 'INVALID_HANDOFF', '登录交接码无效，请重新登录');
+      return null;
+    }
+  })();
+  if (!verifiedSession) {
+    return;
+  }
+
+  const currentSessionVersion = await sessionStateService.getSessionVersion(
+    verifiedSession.user.sub2apiUserId
+  );
+  if (verifiedSession.sessionVersion !== currentSessionVersion) {
+    fail(res, 401, 'HANDOFF_INVALIDATED', '登录交接码已失效，请重新登录');
+    return;
+  }
+
+  try {
+    await distributionRiskService.assertAccessAllowed(verifiedSession.user, {
+      source: 'session_handoff',
+      recheck: true
+    });
+  } catch (error) {
+    if (error instanceof RiskBlockedError) {
+      fail(res, 403, 'RISK_BLOCKED', error.message);
+      return;
+    }
+    throw error;
+  }
+
   ok(res, {
     session_token: handoff.token,
     redirect: handoff.redirectPath
@@ -284,8 +344,29 @@ authRouter.post('/sub2api/exchange', authRateLimit, asyncHandler(async (req, res
     return;
   }
 
+  try {
+    await distributionRiskService.assertAccessAllowed(
+      {
+        sub2apiUserId: currentUser.id,
+        email: currentUser.email,
+        username: currentUser.username,
+        linuxdoSubject: extractLinuxDoSubjectFromEmail(currentUser.email)
+      },
+      {
+        source: 'sub2api_exchange',
+        recheck: true
+      }
+    );
+  } catch (error) {
+    if (error instanceof RiskBlockedError) {
+      fail(res, 403, 'RISK_BLOCKED', error.message);
+      return;
+    }
+    throw error;
+  }
+
   const redirect = sanitizeRedirectPath(parsed.data.redirect);
-  const token = createSessionToken({
+  const token = await createSessionToken({
     sub2apiUserId: currentUser.id,
     email: currentUser.email,
     username: currentUser.username,

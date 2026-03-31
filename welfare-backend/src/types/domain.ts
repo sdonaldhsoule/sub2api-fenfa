@@ -6,10 +6,69 @@ export interface SessionUser {
   avatarUrl: string | null;
 }
 
+export interface SessionTokenUser extends SessionUser {
+  sessionVersion: number;
+}
+
 export interface VerifiedSession {
   user: SessionUser;
   tokenId: string;
   expiresAtMs: number;
+  sessionVersion: number;
+}
+
+export interface UserSecurityState {
+  sub2apiUserId: number;
+  sessionVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RiskEventStatus = 'active' | 'pending_release' | 'released';
+export type RiskSyncStatus = 'pending' | 'success' | 'failed';
+export type RiskScanStateStatus = 'idle' | 'running' | 'success' | 'failed';
+
+export interface RiskEvent {
+  id: number;
+  sub2apiUserId: number;
+  sub2apiEmail: string;
+  sub2apiUsername: string;
+  linuxdoSubject: string | null;
+  sub2apiRole: 'admin' | 'user';
+  sub2apiStatus: string;
+  eventType: 'distribution_ip';
+  status: RiskEventStatus;
+  windowStartedAt: string;
+  windowEndedAt: string;
+  distinctIpCount: number;
+  ipSamples: string[];
+  firstHitAt: string;
+  lastHitAt: string;
+  minimumLockUntil: string;
+  mainSiteSyncStatus: RiskSyncStatus;
+  mainSiteSyncError: string;
+  lastScanStatus: 'success' | 'failed';
+  lastScanError: string;
+  lastScanSource: string;
+  lastScannedAt: string | null;
+  releasedBySub2apiUserId: number | null;
+  releasedByEmail: string;
+  releasedByUsername: string;
+  releaseReason: string;
+  releasedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RiskScanState {
+  lastStartedAt: string | null;
+  lastFinishedAt: string | null;
+  lastStatus: RiskScanStateStatus;
+  lastError: string;
+  lastTriggerSource: string;
+  scannedUserCount: number;
+  hitUserCount: number;
+  updatedAt: string;
 }
 
 export type CheckinMode = 'normal' | 'blindbox';
