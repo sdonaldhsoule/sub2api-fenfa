@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { toast } from 'sonner';
 import { BlindboxRevealOverlay, type BlindboxRevealStage } from '../components/BlindboxRevealOverlay';
 import { useAuth } from '../lib/auth';
 import { api, isUnauthorizedError } from '../lib/api';
@@ -112,8 +113,6 @@ export function CheckinPage() {
   const [blindboxReveal, setBlindboxReveal] = useState<BlindboxRevealState>(
     initialBlindboxRevealState
   );
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   async function redirectToLogin() {
     await logout();
@@ -122,7 +121,6 @@ export function CheckinPage() {
 
   async function loadAll(showLoading = false) {
     if (showLoading) setLoading(true);
-    setError('');
     try {
       const currentStatus = await api.getCheckinStatus();
       setStatus(currentStatus);
@@ -131,7 +129,7 @@ export function CheckinPage() {
         await redirectToLogin();
         return;
       }
-      setError(err instanceof Error ? err.message : '加载失败');
+      toast.error(err instanceof Error ? err.message : '加载状态失败');
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -165,18 +163,16 @@ export function CheckinPage() {
   async function handleNormalCheckin() {
     if (!canSubmitNormal) return;
     setSubmittingMode('normal');
-    setError('');
-    setSuccess('');
     try {
       const result = await api.checkin();
-      setSuccess(`签到成功，已发放 ${result.reward_balance}，当前余额 ${result.new_balance ?? '未知'}`);
+      toast.success(`签到成功，已发放 ${result.reward_balance}`);
       await loadAll();
     } catch (err) {
       if (isUnauthorizedError(err)) {
         await redirectToLogin();
         return;
       }
-      setError(`签到失败：${err instanceof Error && err.message ? err.message : '请稍后重试'}`);
+      toast.error(`签到失败：${err instanceof Error && err.message ? err.message : '请稍后重试'}`);
       await loadAll();
     } finally {
       setSubmittingMode(null);
@@ -189,8 +185,6 @@ export function CheckinPage() {
     let skipTimer = 0;
 
     setSubmittingMode('blindbox');
-    setError('');
-    setSuccess('');
     setBlindboxReveal({
       open: true,
       stage: 'charging',
@@ -234,17 +228,17 @@ export function CheckinPage() {
         data: revealData,
         canSkip: false,
         message: result.new_balance != null
-          ? `抽中「${revealData.title}」，已到账 ${result.reward_balance}，当前余额 ${result.new_balance}`
+          ? `抽中「${revealData.title}」，已到账 ${result.reward_balance}`
           : `抽中「${revealData.title}」，奖励已发放 ${result.reward_balance}`
       }));
-      setSuccess(`抽中 ${revealData.title}，已发放 ${result.reward_balance}`);
+      toast.success(`抽中 ${revealData.title}，已发放 ${result.reward_balance}`);
     } catch (err) {
       if (isUnauthorizedError(err)) {
         await redirectToLogin();
         return;
       }
       const detail = err instanceof Error && err.message ? err.message : '请稍后重试';
-      setError(`失败：${detail}`);
+      toast.error(`签到失败：${detail}`);
       await loadAll();
       setBlindboxReveal((current) => ({ ...current, stage: 'error', message: detail, canSkip: false }));
     } finally {
@@ -260,14 +254,12 @@ export function CheckinPage() {
       : blindboxDemoFallbackItems;
     const demoItem = pickBlindboxDemoItem(demoSourceItems);
     if (!demoItem) {
-      setError('无演示数据');
+      toast.error('当前无演示数据');
       return;
     }
 
     let allowSkipByTime = false;
     let skipTimer = 0;
-    setError('');
-    setSuccess('');
     setBlindboxReveal({
       open: true,
       stage: 'charging',
@@ -303,8 +295,9 @@ export function CheckinPage() {
         canSkip: false,
         message: `演示完毕（${revealData.title}）。未修改数据库。`
       }));
-      setSuccess('演示完成');
+      toast.success('演示开盒完成');
     } catch {
+      toast.error('演示启动失败');
       setBlindboxReveal((current) => ({ ...current, stage: 'error', message: '演示启动失败', canSkip: false, demoMode: true }));
     } finally {
       if (skipTimer) window.clearTimeout(skipTimer);
@@ -359,13 +352,6 @@ export function CheckinPage() {
             </div>
           </div>
         </motion.section>
-
-        {(error || success) && (
-          <motion.div variants={staggerItem}>
-            {error && <p className="alert error">{error}</p>}
-            {success && <p className="alert success">{success}</p>}
-          </motion.div>
-        )}
 
         <motion.div variants={staggerItem} className="frontend-segmented">
           <button

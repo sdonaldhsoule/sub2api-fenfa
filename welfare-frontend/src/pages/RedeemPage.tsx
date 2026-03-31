@@ -5,14 +5,13 @@ import { Icon } from '../components/Icon';
 import { useAuth } from '../lib/auth';
 import { api, isUnauthorizedError } from '../lib/api';
 import { pageVariants, staggerContainer, staggerItem } from '../lib/animations';
+import { toast } from 'sonner';
 
 export function RedeemPage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [redeemCodeInput, setRedeemCodeInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   async function redirectToLogin() {
     await logout();
@@ -25,15 +24,13 @@ export function RedeemPage() {
     }
 
     setSubmitting(true);
-    setError('');
-    setSuccess('');
 
     try {
       const result = await api.redeemCode({
         code: redeemCodeInput.trim()
       });
       setRedeemCodeInput('');
-      setSuccess(
+      toast.success(
         `兑换成功，${result.title} 已发放 ${result.reward_balance}，当前余额 ${result.new_balance ?? '未知'}`
       );
     } catch (err) {
@@ -42,7 +39,7 @@ export function RedeemPage() {
         return;
       }
 
-      setError(
+      toast.error(
         `兑换失败：${err instanceof Error && err.message ? err.message : '请稍后重试'}`
       );
     } finally {
@@ -69,15 +66,8 @@ export function RedeemPage() {
             <Icon name="ticket" size={20} />
             凭证兑换 (Redeem Code)
           </h1>
-          <p className="frontend-bento-desc">输入后台发放的活动码或补偿凭证，单次兑换的结果将在本页即刻回馈。</p>
+          <p className="frontend-bento-desc">输入后台发放的活动码或补偿凭证，单次兑换的结果将即刻回馈。</p>
         </motion.section>
-
-        {(error || success) && (
-          <motion.div variants={staggerItem}>
-            {error && <p className="alert error">{error}</p>}
-            {success && <p className="alert success">{success}</p>}
-          </motion.div>
-        )}
 
         <motion.div variants={staggerItem} className="frontend-bento-grid" style={{ gridTemplateColumns: '1fr' }}>
           <div className="frontend-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', padding: '48px 24px' }}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '../lib/auth';
 import { api, isUnauthorizedError } from '../lib/api';
 import { pageVariants, staggerContainer, staggerItem } from '../lib/animations';
@@ -18,7 +19,6 @@ export function HistoryPage() {
   const [checkins, setCheckins] = useState<CheckinHistoryItem[]>([]);
   const [redeems, setRedeems] = useState<RedeemHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   async function redirectToLogin() {
     await logout();
@@ -28,7 +28,6 @@ export function HistoryPage() {
   useEffect(() => {
     void (async () => {
       setLoading(true);
-      setError('');
       try {
         const [checkinRecords, redeemRecords] = await Promise.all([
           api.getCheckinHistory(),
@@ -41,7 +40,7 @@ export function HistoryPage() {
           await redirectToLogin();
           return;
         }
-        setError(err instanceof Error ? err.message : '记录加载失败');
+        toast.error(err instanceof Error ? err.message : '记录加载失败');
       } finally {
         setLoading(false);
       }
@@ -69,12 +68,6 @@ export function HistoryPage() {
           </h1>
           <p className="frontend-bento-desc">追溯所有额度下发记录、操作时间和发放结果状态，数据仅限当前登录标识符。</p>
         </motion.section>
-
-        {error && (
-          <motion.div variants={staggerItem}>
-            <p className="alert error">{error}</p>
-          </motion.div>
-        )}
 
         <motion.div variants={staggerItem} className="frontend-segmented">
           <button

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import '../admin.css';
 import { Icon } from '../components/Icon';
 import { AdminBlindboxPanel } from '../components/AdminBlindboxPanel';
@@ -143,8 +144,14 @@ export function AdminPage() {
   const [retryingId, setRetryingId] = useState<number | null>(null);
   const [batchRetrying, setBatchRetrying] = useState(false);
   const [batchRetryProgress, setBatchRetryProgress] = useState({ done: 0, total: 0, successCount: 0, failCount: 0 });
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+
+  function setMessage(msg: string) {
+    if (msg) toast.success(msg);
+  }
+
+  function setError(msg: string) {
+    if (msg) toast.error(msg);
+  }
 
   async function redirectToLogin() {
     await logout();
@@ -481,7 +488,7 @@ export function AdminPage() {
         <div className="card auth-card">
           <span className="eyebrow">无权限</span>
           <h1 className="hero-title">无权限访问</h1>
-          <p className="alert error">{error || '当前账号不在管理员白名单中'}</p>
+          <p className="alert error">当前账号不在管理员白名单中</p>
           <Link to="/checkin" className="button" style={{ marginTop: 12 }}>
             → 返回签到页
           </Link>
@@ -583,9 +590,6 @@ export function AdminPage() {
         </header>
         
         <div className="admin-page-body">
-
-          {error && <p className="alert error admin-dashboard-alert">{error}</p>}
-          {message && <p className="alert success admin-dashboard-alert">{message}</p>}
 
           {activeSection === 'overview' && (
             <AdminDashboardOverview

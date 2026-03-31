@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '../lib/auth';
 import { api, isUnauthorizedError } from '../lib/api';
 import { pageVariants, staggerContainer, staggerItem } from '../lib/animations';
@@ -21,8 +22,6 @@ export function ResetPage() {
   const [history, setHistory] = useState<ResetHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   async function redirectToLogin() {
     await logout();
@@ -31,7 +30,6 @@ export function ResetPage() {
 
   async function loadAll(showLoading = false) {
     if (showLoading) setLoading(true);
-    setError('');
     try {
       const [resetStatus, resetHistory] = await Promise.all([
         api.getResetStatus(),
@@ -44,7 +42,7 @@ export function ResetPage() {
         await redirectToLogin();
         return;
       }
-      setError(err instanceof Error ? err.message : '重置状态加载失败');
+      toast.error(err instanceof Error ? err.message : '状态加载失败');
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -57,18 +55,16 @@ export function ResetPage() {
   async function handleApply() {
     if (!status?.can_apply || applying) return;
     setApplying(true);
-    setError('');
-    setSuccess('');
     try {
       const result = await api.applyReset();
-      setSuccess(`重置成功，本次补差 ${result.granted_balance}，当前余额 ${result.new_balance}`);
+      toast.success(`重置成功，本次补差 ${result.granted_balance}，当前余额 ${result.new_balance}`);
       await loadAll();
     } catch (err) {
       if (isUnauthorizedError(err)) {
         await redirectToLogin();
         return;
       }
-      setError(`失败：${err instanceof Error && err.message ? err.message : '请稍后重试'}`);
+      toast.error(`重置失败：${err instanceof Error && err.message ? err.message : '请稍后重试'}`);
       await loadAll();
     } finally {
       setApplying(false);
@@ -114,13 +110,6 @@ export function ResetPage() {
             </div>
           </div>
         </motion.section>
-
-        {(error || success) && (
-          <motion.div variants={staggerItem}>
-            {error && <p className="alert error">{error}</p>}
-            {success && <p className="alert success">{success}</p>}
-          </motion.div>
-        )}
 
         <motion.section variants={staggerItem} className="frontend-bento-grid">
           <div className="frontend-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
