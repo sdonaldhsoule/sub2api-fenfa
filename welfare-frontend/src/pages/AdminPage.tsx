@@ -179,13 +179,28 @@ export function AdminPage() {
     }
   }
 
+  async function loadRiskOverviewSnapshot(options?: { silent?: boolean }) {
+    try {
+      const overview = await api.getAdminRiskOverview();
+      setRiskOverview(overview);
+    } catch (err) {
+      if (isUnauthorizedError(err)) {
+        await redirectToLogin();
+        return;
+      }
+
+      if (!options?.silent) {
+        setError(err instanceof Error ? err.message : '风控总览加载失败');
+      }
+    }
+  }
+
   async function loadOverview() {
     setLoading(true);
     setError('');
     try {
-      const [overview, riskOverviewResp, redeemCodes, failedCheckinsResp, failedRedeemClaimsResp] = await Promise.all([
+      const [overview, redeemCodes, failedCheckinsResp, failedRedeemClaimsResp] = await Promise.all([
         api.getAdminOverview(),
-        api.getAdminRiskOverview(),
         api.listAdminRedeemCodes(),
         api.listAdminCheckins({ page: 1, page_size: 4, grant_status: 'failed' }),
         api.listAdminRedeemClaims({ page: 1, page_size: 4, grant_status: 'failed' })
@@ -195,7 +210,6 @@ export function AdminPage() {
       setDailyRewardMaxInput(String(overview.settings.daily_reward_max_balance));
       setStats(overview.stats);
       setWhitelist(overview.whitelist);
-      setRiskOverview(riskOverviewResp);
       setOverviewRedeemCodes(redeemCodes);
       setOverviewFailedCheckins(failedCheckinsResp.items);
       setOverviewFailedCheckinsTotal(failedCheckinsResp.total);
@@ -210,6 +224,8 @@ export function AdminPage() {
     } finally {
       setLoading(false);
     }
+
+    void loadRiskOverviewSnapshot({ silent: true });
   }
 
   async function loadCheckins(filters: AdminCheckinQuery = checkinFilters) {
