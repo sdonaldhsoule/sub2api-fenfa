@@ -125,6 +125,8 @@ describe('AdminPage dashboard', () => {
         last_status: 'success',
         last_error: '',
         last_trigger_source: 'scheduled',
+        scanned_user_count: 12,
+        hit_user_count: 3,
         updated_at: '2026-03-31T00:00:00.000Z'
       }
     });

@@ -211,6 +211,8 @@ function toAdminRiskOverviewPayload(overview: {
     lastStatus: 'idle' | 'running' | 'success' | 'failed';
     lastError: string;
     lastTriggerSource: string;
+    scannedUserCount: number;
+    hitUserCount: number;
     updatedAt: string;
   };
 }) {
@@ -231,6 +233,8 @@ function toAdminRiskOverviewPayload(overview: {
       last_status: overview.lastScan.lastStatus,
       last_error: overview.lastScan.lastError,
       last_trigger_source: overview.lastScan.lastTriggerSource,
+      scanned_user_count: overview.lastScan.scannedUserCount,
+      hit_user_count: overview.lastScan.hitUserCount,
       updated_at: overview.lastScan.updatedAt
     }
   };

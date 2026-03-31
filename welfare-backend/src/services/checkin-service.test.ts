@@ -33,6 +33,7 @@ function createRepositoryMock() {
     claimStalePending: vi.fn(),
     markCheckinSuccess: vi.fn(),
     markCheckinFailed: vi.fn(),
+    updateCheckinRecipient: vi.fn(),
     listUserCheckins: vi.fn(),
     updateSettings: vi.fn(),
     getDailyStats: vi.fn(),
@@ -43,7 +44,9 @@ function createRepositoryMock() {
 
 function createSub2apiMock() {
   return {
-    addUserBalance: vi.fn()
+    addUserBalance: vi.fn(),
+    findUserByEmail: vi.fn(),
+    getAdminUserById: vi.fn()
   };
 }
 
@@ -123,6 +126,16 @@ describe('checkin service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    sub2api.getAdminUserById.mockResolvedValue({
+      id: 42,
+      email: 'linuxdo-user@linuxdo-connect.invalid',
+      username: 'linuxdo-user'
+    });
+    sub2api.findUserByEmail.mockResolvedValue({
+      id: 42,
+      email: 'linuxdo-user@linuxdo-connect.invalid',
+      username: 'linuxdo-user'
+    });
   });
 
   it('成功重试失败签到并返回更新后的记录', async () => {
@@ -193,6 +206,57 @@ describe('checkin service', () => {
       failedRecord.id,
       'upstream unavailable'
     );
+  });
+
+  it('补发遇到主站用户 404 时会按邮箱回查最新用户并更新本地记录', async () => {
+    const failedRecord = createNormalFailedRecord();
+    const pendingRecord: CheckinRecord = {
+      ...failedRecord,
+      grantStatus: 'pending',
+      grantError: ''
+    };
+    const successRecord: CheckinRecord = {
+      ...failedRecord,
+      sub2apiUserId: 99,
+      sub2apiEmail: 'linuxdo-user@linuxdo-connect.invalid',
+      sub2apiUsername: 'new-user',
+      grantStatus: 'success',
+      grantError: '',
+      sub2apiRequestId: 'req-404-fallback'
+    };
+
+    repository.getCheckinById
+      .mockResolvedValueOnce(failedRecord)
+      .mockResolvedValueOnce(successRecord);
+    repository.markCheckinPendingRetry.mockResolvedValue(pendingRecord);
+    repository.updateCheckinRecipient.mockResolvedValue(undefined);
+    repository.markCheckinSuccess.mockResolvedValue(undefined);
+    sub2api.getAdminUserById.mockResolvedValue(null);
+    sub2api.findUserByEmail.mockResolvedValue({
+      id: 99,
+      email: 'linuxdo-user@linuxdo-connect.invalid',
+      username: 'new-user'
+    });
+    sub2api.addUserBalance.mockResolvedValue({
+      newBalance: 88,
+      requestId: 'req-404-fallback'
+    });
+
+    const result = await service.retryFailedCheckin(failedRecord.id);
+
+    expect(repository.updateCheckinRecipient).toHaveBeenCalledWith(failedRecord.id, {
+      sub2apiUserId: 99,
+      sub2apiEmail: 'linuxdo-user@linuxdo-connect.invalid',
+      sub2apiUsername: 'new-user',
+      linuxdoSubject: 'user'
+    });
+    expect(sub2api.addUserBalance).toHaveBeenCalledWith({
+      userId: 99,
+      amount: failedRecord.rewardBalance,
+      notes: `福利签到 ${failedRecord.checkinDate}`,
+      idempotencyKey: failedRecord.idempotencyKey
+    });
+    expect(result.item.sub2apiUserId).toBe(99);
   });
 
   it('成功状态不允许重复补发', async () => {

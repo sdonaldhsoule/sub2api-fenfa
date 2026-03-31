@@ -154,6 +154,8 @@ export interface AdminRiskScanState {
   last_status: 'idle' | 'running' | 'success' | 'failed';
   last_error: string;
   last_trigger_source: string;
+  scanned_user_count: number;
+  hit_user_count: number;
   updated_at: string;
 }
 

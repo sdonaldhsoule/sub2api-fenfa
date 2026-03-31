@@ -294,6 +294,14 @@ export function AdminDistributionDetectionPanel({
                   <span>更新</span>
                   <strong>{formatAdminDateTime(overview?.last_scan.updated_at)}</strong>
                 </div>
+                <div className="distribution-scan-row">
+                  <span>扫描</span>
+                  <strong>{overview?.last_scan.scanned_user_count ?? 0} 人</strong>
+                </div>
+                <div className="distribution-scan-row">
+                  <span>命中</span>
+                  <strong>{overview?.last_scan.hit_user_count ?? 0} 人</strong>
+                </div>
               </div>
 
               <div className="distribution-scan-error">

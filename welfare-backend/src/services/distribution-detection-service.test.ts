@@ -264,12 +264,26 @@ describe('DistributionDetectionService access guard', () => {
         items: [
           {
             ...existingEvent,
+            status: 'released',
             sub2apiStatus: 'active',
-            mainSiteSyncStatus: 'failed',
-            mainSiteSyncError: '主站状态已与本地封禁事件不一致'
+            mainSiteSyncStatus: 'success',
+            mainSiteSyncError: '',
+            releasedByUsername: 'system-sync',
+            releaseReason: '检测到主站已手动恢复，福利站自动同步释放',
+            releasedAt: '2026-03-31T02:00:00.000Z'
           }
         ],
         total: 1
+      }),
+      releaseRiskEvent: vi.fn().mockResolvedValue({
+        ...existingEvent,
+        status: 'released',
+        sub2apiStatus: 'active',
+        mainSiteSyncStatus: 'success',
+        mainSiteSyncError: '',
+        releasedByUsername: 'system-sync',
+        releaseReason: '检测到主站已手动恢复，福利站自动同步释放',
+        releasedAt: '2026-03-31T02:00:00.000Z'
       }),
       updateRiskEventSync: vi.fn().mockResolvedValue({
         ...existingEvent,
@@ -312,18 +326,14 @@ describe('DistributionDetectionService access guard', () => {
       pageSize: 20
     });
 
-    expect(repository.updateRiskEventSync).toHaveBeenCalledWith(1, {
-      sub2apiStatus: 'active',
-      mainSiteSyncStatus: 'failed',
-      mainSiteSyncError: '主站状态已与本地封禁事件不一致'
-    });
+    expect(repository.releaseRiskEvent).toHaveBeenCalledTimes(1);
     expect(repository.listRiskEventsForStatuses).toHaveBeenCalledWith(
       ['active', 'pending_release'],
       1000
     );
     expect(result.items[0]).toMatchObject({
       sub2apiStatus: 'active',
-      mainSiteSyncStatus: 'failed'
+      status: 'released'
     });
   });
 

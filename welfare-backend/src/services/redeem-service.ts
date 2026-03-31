@@ -7,6 +7,8 @@ import {
   type UpdateRedeemCodeInput
 } from '../repositories/redeem-repository.js';
 import type { RedeemClaim, RedeemCode, SessionUser } from '../types/domain.js';
+import { extractLinuxDoSubjectFromEmail } from '../utils/oauth.js';
+import { HttpError } from '../utils/http.js';
 import { Sub2apiClient, sub2apiClient } from './sub2api-client.js';
 
 export class ConflictError extends Error {}
@@ -81,11 +83,15 @@ type RedeemRepositoryLike = Pick<
   | 'claimStaleRedeemPending'
   | 'markRedeemClaimSuccess'
   | 'markRedeemClaimFailed'
+  | 'updateRedeemClaimRecipient'
   | 'listUserRedeemClaims'
   | 'queryAdminRedeemClaims'
 >;
 
-type Sub2apiClientLike = Pick<Sub2apiClient, 'addUserBalance'>;
+type Sub2apiClientLike = Pick<
+  Sub2apiClient,
+  'addUserBalance' | 'findUserByEmail' | 'getAdminUserById'
+>;
 
 export class RedeemService {
   constructor(
@@ -267,8 +273,9 @@ export class RedeemService {
     let grantResult: Awaited<ReturnType<Sub2apiClientLike['addUserBalance']>>;
 
     try {
+      const userId = await this.resolveRecipientUserId(record);
       grantResult = await this.sub2api.addUserBalance({
-        userId: record.sub2apiUserId,
+        userId,
         amount: record.rewardBalance,
         notes: buildGrantNotes(record),
         idempotencyKey: record.idempotencyKey
@@ -288,6 +295,35 @@ export class RedeemService {
       newBalance: grantResult.newBalance ?? null,
       requestId: grantResult.requestId
     };
+  }
+
+  private async resolveRecipientUserId(record: RedeemClaim): Promise<number> {
+    try {
+      const user = await this.sub2api.getAdminUserById(record.sub2apiUserId);
+      if (user?.id) {
+        return user.id;
+      }
+    } catch (error) {
+      if (!(error instanceof HttpError && error.status === 404)) {
+        throw error;
+      }
+    }
+
+    const fallbackUser = await this.sub2api.findUserByEmail(record.sub2apiEmail);
+    if (!fallbackUser?.id) {
+      throw new HttpError(404, '', '主站用户不存在，可能已被删除或重建');
+    }
+
+    if (fallbackUser.id !== record.sub2apiUserId) {
+      await this.repository.updateRedeemClaimRecipient(record.id, {
+        sub2apiUserId: fallbackUser.id,
+        sub2apiEmail: fallbackUser.email,
+        sub2apiUsername: fallbackUser.username || fallbackUser.email,
+        linuxdoSubject: extractLinuxDoSubjectFromEmail(fallbackUser.email)
+      });
+    }
+
+    return fallbackUser.id;
   }
 }
 

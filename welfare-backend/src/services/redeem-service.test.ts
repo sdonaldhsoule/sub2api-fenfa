@@ -37,6 +37,7 @@ function createRepositoryMock() {
     claimStaleRedeemPending: vi.fn(),
     markRedeemClaimSuccess: vi.fn(),
     markRedeemClaimFailed: vi.fn(),
+    updateRedeemClaimRecipient: vi.fn(),
     listUserRedeemClaims: vi.fn(),
     queryAdminRedeemClaims: vi.fn()
   };
@@ -44,7 +45,9 @@ function createRepositoryMock() {
 
 function createSub2apiMock() {
   return {
-    addUserBalance: vi.fn()
+    addUserBalance: vi.fn(),
+    findUserByEmail: vi.fn(),
+    getAdminUserById: vi.fn()
   };
 }
 
@@ -94,6 +97,16 @@ describe('redeem service', () => {
     repository.withTransaction.mockImplementation(async (fn: (tx: object) => Promise<unknown>) =>
       fn({} as object)
     );
+    sub2api.getAdminUserById.mockResolvedValue({
+      id: 42,
+      email: 'linuxdo-user@linuxdo-connect.invalid',
+      username: 'linuxdo-user'
+    });
+    sub2api.findUserByEmail.mockResolvedValue({
+      id: 42,
+      email: 'linuxdo-user@linuxdo-connect.invalid',
+      username: 'linuxdo-user'
+    });
   });
 
   it('新用户成功兑换并占用名额', async () => {
@@ -310,6 +323,55 @@ describe('redeem service', () => {
       pendingClaim.id,
       'upstream unavailable'
     );
+  });
+
+  it('补发遇到主站用户 404 时会按邮箱回查最新用户并更新本地记录', async () => {
+    const failedClaim = createFailedClaim();
+    const pendingClaim: RedeemClaim = {
+      ...failedClaim,
+      grantStatus: 'pending',
+      grantError: ''
+    };
+    const successClaim: RedeemClaim = {
+      ...failedClaim,
+      sub2apiUserId: 99,
+      sub2apiUsername: 'new-user',
+      grantStatus: 'success',
+      grantError: '',
+      sub2apiRequestId: 'req-redeem-fallback'
+    };
+
+    repository.getRedeemClaimByIdForUpdate.mockResolvedValue(failedClaim);
+    repository.markRedeemClaimPendingRetry.mockResolvedValue(pendingClaim);
+    repository.updateRedeemClaimRecipient.mockResolvedValue(undefined);
+    repository.markRedeemClaimSuccess.mockResolvedValue(undefined);
+    repository.getRedeemClaimById.mockResolvedValue(successClaim);
+    sub2api.getAdminUserById.mockResolvedValue(null);
+    sub2api.findUserByEmail.mockResolvedValue({
+      id: 99,
+      email: 'linuxdo-user@linuxdo-connect.invalid',
+      username: 'new-user'
+    });
+    sub2api.addUserBalance.mockResolvedValue({
+      newBalance: 456,
+      requestId: 'req-redeem-fallback'
+    });
+
+    const result = await service.retryRedeemClaim(failedClaim.id);
+
+    expect(repository.updateRedeemClaimRecipient).toHaveBeenCalledWith(failedClaim.id, {
+      sub2apiUserId: 99,
+      sub2apiEmail: 'linuxdo-user@linuxdo-connect.invalid',
+      sub2apiUsername: 'new-user',
+      linuxdoSubject: 'user'
+    });
+    expect(sub2api.addUserBalance).toHaveBeenCalledWith({
+      userId: 99,
+      amount: failedClaim.rewardBalance,
+      notes: '福利兑换码 福利100刀兑换',
+      idempotencyKey: failedClaim.idempotencyKey
+    });
+    expect(result.item.sub2apiUserId).toBe(99);
   });
 
   it('用户重复提交时会接管超时 pending 记录', async () => {

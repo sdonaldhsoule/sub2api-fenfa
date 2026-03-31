@@ -1047,6 +1047,21 @@ export class DistributionDetectionService {
       }
 
       const currentStatus = normalizeUserStatus(user.status);
+      if (item.status !== 'released' && currentStatus === 'active') {
+        await this.repository.releaseRiskEvent(item.id, {
+          sub2apiStatus: 'active',
+          mainSiteSyncStatus: 'success',
+          mainSiteSyncError: '',
+          releasedBySub2apiUserId: 0,
+          releasedByEmail: '',
+          releasedByUsername: 'system-sync',
+          releaseReason: '检测到主站已手动恢复，福利站自动同步释放',
+          releasedAt: nowIso()
+        });
+        updatedCount += 1;
+        continue;
+      }
+
       const expectedStatus = item.status === 'released' ? 'active' : 'disabled';
       const nextSyncStatus = currentStatus === expectedStatus ? 'success' : 'failed';
       const nextSyncError =

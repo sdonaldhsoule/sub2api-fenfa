@@ -629,6 +629,33 @@ export class WelfareRepository {
     );
   }
 
+  async updateCheckinRecipient(
+    id: number,
+    input: {
+      sub2apiUserId: number;
+      sub2apiEmail: string;
+      sub2apiUsername: string;
+      linuxdoSubject: string | null;
+    }
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE welfare_checkins
+       SET sub2api_user_id = $2,
+           sub2api_email = $3,
+           sub2api_username = $4,
+           linuxdo_subject = $5,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [
+        id,
+        input.sub2apiUserId,
+        input.sub2apiEmail,
+        input.sub2apiUsername,
+        input.linuxdoSubject
+      ]
+    );
+  }
+
   async markCheckinFailed(id: number, errorText: string): Promise<void> {
     await this.db.query(
       `UPDATE welfare_checkins
