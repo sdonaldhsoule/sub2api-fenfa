@@ -36,6 +36,11 @@ LINUXDO_SCOPE=user
 SUB2API_BASE_URL=https://your-sub2api.example.com
 SUB2API_ADMIN_API_KEY=your-sub2api-admin-api-key
 
+# 可选：监控后台直接操作 Cloudflare 单 IP 规则
+CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
+CLOUDFLARE_ZONE_ID=your-cloudflare-zone-id
+CLOUDFLARE_TIMEOUT_MS=10000
+
 DEFAULT_TIMEZONE=Asia/Shanghai
 BOOTSTRAP_ADMIN_USER_IDS=
 BOOTSTRAP_ADMIN_EMAILS=
@@ -48,6 +53,9 @@ BOOTSTRAP_ADMIN_SUBJECTS=
 
 - 福利站页面的 iframe 嵌入白名单会自动跟随 `SUB2API_BASE_URL` 的域名
 - 如果你要在 sub2api 后台自定义菜单里嵌入福利站，`SUB2API_BASE_URL` 必须填你实际访问 sub2api 的那个 HTTPS 域名
+- `CLOUDFLARE_*` 留空时，监控后台里的 Cloudflare IP 处置区域会显示未配置，但不会影响主服务启动
+- Cloudflare Token 建议最小权限只给目标 Zone，至少包含 `Zone WAF Edit`
+- 当前面板只接管“福利站自己创建的 Cloudflare IP 规则”；如果某个 IP 已经有外部手工规则，面板会拒绝覆盖，避免误封
 
 ## 3. 域名与回调
 

@@ -31,8 +31,11 @@ export type MonitoringActionType =
   | 'disable_user'
   | 'enable_user'
   | 'release_risk_event'
-  | 'run_risk_scan';
-export type MonitoringActionTargetType = 'user' | 'risk_event' | 'scan';
+  | 'run_risk_scan'
+  | 'cloudflare_challenge_ip'
+  | 'cloudflare_block_ip'
+  | 'cloudflare_unblock_ip';
+export type MonitoringActionTargetType = 'user' | 'risk_event' | 'scan' | 'ip';
 export type MonitoringActionResultStatus = 'success' | 'failed' | 'blocked';
 
 export interface RiskEvent {

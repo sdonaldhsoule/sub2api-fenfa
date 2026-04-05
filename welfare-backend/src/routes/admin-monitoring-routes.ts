@@ -8,7 +8,9 @@ import {
 import {
   monitoringService,
   MonitoringConflictError,
-  MonitoringNotFoundError
+  MonitoringFeatureUnavailableError,
+  MonitoringNotFoundError,
+  MonitoringUpstreamError
 } from '../services/monitoring-service.js';
 import { fail, ok } from '../utils/response.js';
 import { asyncHandler } from '../utils/async-handler.js';
@@ -152,6 +154,28 @@ function toMonitoringUserIpPayload(item: Awaited<ReturnType<typeof monitoringSer
   };
 }
 
+function toMonitoringIpCloudflarePayload(
+  item: Awaited<ReturnType<typeof monitoringService.getIpCloudflareStatus>>
+) {
+  return {
+    ip_address: item.ipAddress,
+    enabled: item.enabled,
+    can_manage: item.canManage,
+    disabled_reason: item.disabledReason,
+    matched_rule_count: item.matchedRuleCount,
+    rule: item.rule
+      ? {
+          id: item.rule.id,
+          mode: item.rule.mode,
+          source: item.rule.source,
+          notes: item.rule.notes,
+          created_at: item.rule.createdAt,
+          modified_at: item.rule.modifiedAt
+        }
+      : null
+  };
+}
+
 function toAdminRiskOverviewPayload(overview: Awaited<ReturnType<typeof distributionDetectionService.getOverview>>) {
   return {
     active_event_count: overview.activeEventCount,
@@ -235,7 +259,15 @@ const pagingSchema = z.object({
 
 const monitoringActionQuerySchema = pagingSchema.extend({
   action_type: z
-    .enum(['disable_user', 'enable_user', 'release_risk_event', 'run_risk_scan'])
+    .enum([
+      'disable_user',
+      'enable_user',
+      'release_risk_event',
+      'run_risk_scan',
+      'cloudflare_challenge_ip',
+      'cloudflare_block_ip',
+      'cloudflare_unblock_ip'
+    ])
     .optional()
 });
 
@@ -243,9 +275,11 @@ const riskEventsQuerySchema = pagingSchema.extend({
   status: z.enum(['active', 'pending_release', 'released']).optional()
 });
 
-const actionReasonSchema = z.object({
-  reason: z.string().max(500).optional()
-});
+const actionReasonSchema = z
+  .object({
+    reason: z.string().max(500).optional()
+  })
+  .default({});
 
 export const adminMonitoringRouter = Router();
 
@@ -286,6 +320,23 @@ adminMonitoringRouter.get('/ips/:ip/users', asyncHandler(async (req, res) => {
   } catch (error) {
     if (error instanceof MonitoringNotFoundError) {
       fail(res, 404, 'NOT_FOUND', error.message);
+      return;
+    }
+    throw error;
+  }
+}));
+
+adminMonitoringRouter.get('/ips/:ip/cloudflare', asyncHandler(async (req, res) => {
+  try {
+    const result = await monitoringService.getIpCloudflareStatus(req.params.ip);
+    ok(res, toMonitoringIpCloudflarePayload(result));
+  } catch (error) {
+    if (error instanceof MonitoringNotFoundError) {
+      fail(res, 404, 'NOT_FOUND', error.message);
+      return;
+    }
+    if (error instanceof MonitoringUpstreamError) {
+      fail(res, 502, 'CLOUDFLARE_UPSTREAM_ERROR', error.message);
       return;
     }
     throw error;
@@ -412,6 +463,117 @@ adminMonitoringRouter.post('/users/:id/enable', asyncHandler(async (req, res) =>
     }
     if (error instanceof MonitoringConflictError) {
       fail(res, 409, 'MONITORING_CONFLICT', error.message);
+      return;
+    }
+    throw error;
+  }
+}));
+
+adminMonitoringRouter.post('/ips/:ip/challenge', asyncHandler(async (req, res) => {
+  const parsed = actionReasonSchema.safeParse(req.body);
+  if (!parsed.success) {
+    fail(res, 400, 'BAD_REQUEST', parsed.error.issues[0]?.message ?? '参数非法');
+    return;
+  }
+
+  try {
+    const item = await monitoringService.challengeIp(
+      req.params.ip,
+      req.sessionUser!,
+      parsed.data.reason?.trim() ?? ''
+    );
+    ok(res, {
+      item: toMonitoringIpCloudflarePayload(item)
+    });
+  } catch (error) {
+    if (error instanceof MonitoringNotFoundError) {
+      fail(res, 404, 'NOT_FOUND', error.message);
+      return;
+    }
+    if (error instanceof MonitoringConflictError) {
+      fail(res, 409, 'MONITORING_CONFLICT', error.message);
+      return;
+    }
+    if (error instanceof MonitoringFeatureUnavailableError) {
+      fail(res, 503, 'CLOUDFLARE_NOT_CONFIGURED', error.message);
+      return;
+    }
+    if (error instanceof MonitoringUpstreamError) {
+      fail(res, 502, 'CLOUDFLARE_UPSTREAM_ERROR', error.message);
+      return;
+    }
+    throw error;
+  }
+}));
+
+adminMonitoringRouter.post('/ips/:ip/block', asyncHandler(async (req, res) => {
+  const parsed = actionReasonSchema.safeParse(req.body);
+  if (!parsed.success) {
+    fail(res, 400, 'BAD_REQUEST', parsed.error.issues[0]?.message ?? '参数非法');
+    return;
+  }
+
+  try {
+    const item = await monitoringService.blockIp(
+      req.params.ip,
+      req.sessionUser!,
+      parsed.data.reason?.trim() ?? ''
+    );
+    ok(res, {
+      item: toMonitoringIpCloudflarePayload(item)
+    });
+  } catch (error) {
+    if (error instanceof MonitoringNotFoundError) {
+      fail(res, 404, 'NOT_FOUND', error.message);
+      return;
+    }
+    if (error instanceof MonitoringConflictError) {
+      fail(res, 409, 'MONITORING_CONFLICT', error.message);
+      return;
+    }
+    if (error instanceof MonitoringFeatureUnavailableError) {
+      fail(res, 503, 'CLOUDFLARE_NOT_CONFIGURED', error.message);
+      return;
+    }
+    if (error instanceof MonitoringUpstreamError) {
+      fail(res, 502, 'CLOUDFLARE_UPSTREAM_ERROR', error.message);
+      return;
+    }
+    throw error;
+  }
+}));
+
+adminMonitoringRouter.delete('/ips/:ip/cloudflare', asyncHandler(async (req, res) => {
+  const parsed = actionReasonSchema.safeParse(req.body);
+  if (!parsed.success) {
+    fail(res, 400, 'BAD_REQUEST', parsed.error.issues[0]?.message ?? '参数非法');
+    return;
+  }
+
+  try {
+    const item = await monitoringService.unblockIp(
+      req.params.ip,
+      req.sessionUser!,
+      parsed.data.reason?.trim() ?? ''
+    );
+    ok(res, {
+      item: toMonitoringIpCloudflarePayload(item)
+    });
+  } catch (error) {
+    if (error instanceof MonitoringNotFoundError) {
+      fail(res, 404, 'NOT_FOUND', error.message);
+      return;
+    }
+    if (error instanceof MonitoringConflictError) {
+      fail(res, 409, 'MONITORING_CONFLICT', error.message);
+      return;
+    }
+    if (error instanceof MonitoringFeatureUnavailableError) {
+      fail(res, 503, 'CLOUDFLARE_NOT_CONFIGURED', error.message);
+      return;
+    }
+    if (error instanceof MonitoringUpstreamError) {
+      fail(res, 502, 'CLOUDFLARE_UPSTREAM_ERROR', error.message);
       return;
     }
     throw error;

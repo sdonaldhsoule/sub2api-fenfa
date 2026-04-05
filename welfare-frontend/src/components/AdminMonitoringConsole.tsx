@@ -6,6 +6,7 @@ import type {
   AdminMonitoringActionItem,
   AdminMonitoringActionList,
   AdminMonitoringActionType,
+  AdminMonitoringIpCloudflareStatus,
   AdminMonitoringIpItem,
   AdminMonitoringIpList,
   AdminMonitoringIpUserItem,
@@ -128,6 +129,46 @@ function describeRiskStatus(item: MonitoringUserLike) {
   };
 }
 
+function describeCloudflareMode(
+  mode: NonNullable<AdminMonitoringIpCloudflareStatus['rule']>['mode']
+): string {
+  switch (mode) {
+    case 'managed_challenge':
+      return '托管质询';
+    case 'block':
+      return '直接封禁';
+    case 'challenge':
+      return '传统质询';
+    case 'js_challenge':
+      return 'JS 质询';
+    case 'whitelist':
+      return '放行';
+    default:
+      return mode;
+  }
+}
+
+function describeActionResultStatus(status: AdminMonitoringActionItem['result_status']) {
+  if (status === 'success') {
+    return {
+      label: '成功',
+      className: 'success'
+    };
+  }
+
+  if (status === 'blocked') {
+    return {
+      label: '已拦截',
+      className: 'pending'
+    };
+  }
+
+  return {
+    label: '失败',
+    className: 'failed'
+  };
+}
+
 function describeActionType(type: AdminMonitoringActionType): string {
   switch (type) {
     case 'disable_user':
@@ -138,6 +179,12 @@ function describeActionType(type: AdminMonitoringActionType): string {
       return '释放风险事件';
     case 'run_risk_scan':
       return '手动扫描';
+    case 'cloudflare_challenge_ip':
+      return 'Cloudflare 质询';
+    case 'cloudflare_block_ip':
+      return 'Cloudflare 封禁';
+    case 'cloudflare_unblock_ip':
+      return 'Cloudflare 解除';
     default:
       return type;
   }
@@ -173,9 +220,45 @@ function describeActionDetail(item: AdminMonitoringActionItem): string {
       return '风险事件已释放，可以重新登录。';
     case 'run_risk_scan':
       return '执行了一次人工风险扫描。';
+    case 'cloudflare_challenge_ip':
+      return '已对目标 IP 下发 Cloudflare 托管质询。';
+    case 'cloudflare_block_ip':
+      return '已对目标 IP 下发 Cloudflare 封禁。';
+    case 'cloudflare_unblock_ip':
+      return '已解除目标 IP 的福利站托管规则。';
     default:
       return '已记录操作。';
   }
+}
+
+function describeCloudflareStatus(
+  status: AdminMonitoringIpCloudflareStatus | null
+): { label: string; className: 'success' | 'pending' | 'failed' } {
+  if (!status) {
+    return {
+      label: '未读取',
+      className: 'pending'
+    };
+  }
+
+  if (!status.enabled) {
+    return {
+      label: '未配置',
+      className: 'pending'
+    };
+  }
+
+  if (status.rule) {
+    return {
+      label: describeCloudflareMode(status.rule.mode),
+      className: status.rule.mode === 'block' ? 'failed' : 'pending'
+    };
+  }
+
+  return {
+    label: '未下发',
+    className: 'success'
+  };
 }
 
 function describeReleaseAvailability(item: AdminRiskEvent): string {
@@ -316,6 +399,9 @@ export function AdminMonitoringConsole({
   const [selectedIp, setSelectedIp] = useState<string | null>(null);
   const [ipUsers, setIpUsers] = useState<AdminMonitoringIpUsersResponse | null>(null);
   const [ipUsersLoading, setIpUsersLoading] = useState(false);
+  const [ipCloudflareStatus, setIpCloudflareStatus] =
+    useState<AdminMonitoringIpCloudflareStatus | null>(null);
+  const [ipCloudflareLoading, setIpCloudflareLoading] = useState(false);
   const [userFilters, setUserFilters] = useState(defaultUserFilters);
   const [userList, setUserList] = useState<AdminMonitoringUserList | null>(null);
   const [userLoading, setUserLoading] = useState(true);
@@ -335,6 +421,7 @@ export function AdminMonitoringConsole({
   const [riskEventsLoading, setRiskEventsLoading] = useState(true);
   const [operatorReason, setOperatorReason] = useState('');
   const [busyUserId, setBusyUserId] = useState<number | null>(null);
+  const [busyIpAction, setBusyIpAction] = useState<'challenge' | 'block' | 'clear' | null>(null);
   const [releasingId, setReleasingId] = useState<number | null>(null);
   const [scanning, setScanning] = useState(false);
 
@@ -359,14 +446,29 @@ export function AdminMonitoringConsole({
     }
   }
 
+  async function loadIpCloudflareStatus(ipAddress: string) {
+    setIpCloudflareLoading(true);
+    try {
+      const result = await api.getAdminMonitoringIpCloudflareStatus(ipAddress);
+      setIpCloudflareStatus(result);
+    } catch (error) {
+      setIpCloudflareStatus(null);
+      await handleRequestError(error, 'Cloudflare IP 状态加载失败');
+    } finally {
+      setIpCloudflareLoading(false);
+    }
+  }
+
   async function loadIpUsers(ipAddress: string) {
     setIpUsersLoading(true);
     try {
       const result = await api.getAdminMonitoringIpUsers(ipAddress);
       setSelectedIp(result.ip.ip_address);
       setIpUsers(result);
+      await loadIpCloudflareStatus(result.ip.ip_address);
     } catch (error) {
       setIpUsers(null);
+      setIpCloudflareStatus(null);
       await handleRequestError(error, 'IP 关联用户加载失败');
     } finally {
       setIpUsersLoading(false);
@@ -387,6 +489,7 @@ export function AdminMonitoringConsole({
       if (!nextIp) {
         setSelectedIp(null);
         setIpUsers(null);
+        setIpCloudflareStatus(null);
         return;
       }
 
@@ -592,6 +695,69 @@ export function AdminMonitoringConsole({
       );
     } finally {
       setBusyUserId(null);
+    }
+  }
+
+  async function handleIpAction(action: 'challenge' | 'block' | 'clear') {
+    const ipAddress = ipUsers?.ip.ip_address ?? selectedIp;
+    if (!ipAddress || !ipCloudflareStatus) {
+      return;
+    }
+
+    if (!ipCloudflareStatus.enabled || !ipCloudflareStatus.can_manage) {
+      if (ipCloudflareStatus.disabled_reason) {
+        onError(ipCloudflareStatus.disabled_reason);
+      }
+      return;
+    }
+
+    const actionText =
+      action === 'challenge'
+        ? '对这个 IP 启用 Cloudflare 托管质询'
+        : action === 'block'
+          ? '对这个 IP 直接下发 Cloudflare 封禁'
+          : '解除这个 IP 的福利站托管规则';
+    const confirmed = window.confirm(
+      action === 'block'
+        ? `确认${actionText}吗？建议只有在质询后仍明显异常时再升级为封禁。`
+        : `确认${actionText}吗？`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBusyIpAction(action);
+    try {
+      if (action === 'challenge') {
+        await api.challengeAdminMonitoringIp(ipAddress, {
+          reason: operatorReason.trim() || undefined
+        });
+        onSuccess(`已对 ${ipAddress} 下发 Cloudflare 托管质询`);
+      } else if (action === 'block') {
+        await api.blockAdminMonitoringIp(ipAddress, {
+          reason: operatorReason.trim() || undefined
+        });
+        onSuccess(`已对 ${ipAddress} 下发 Cloudflare 封禁`);
+      } else {
+        await api.clearAdminMonitoringIpCloudflare(ipAddress, {
+          reason: operatorReason.trim() || undefined
+        });
+        onSuccess(`已清除 ${ipAddress} 的福利站托管 Cloudflare 规则`);
+      }
+
+      await refreshConsoleData();
+    } catch (error) {
+      await handleRequestError(
+        error,
+        action === 'challenge'
+          ? 'Cloudflare 质询失败'
+          : action === 'block'
+            ? 'Cloudflare 封禁失败'
+            : 'Cloudflare 解除失败'
+      );
+    } finally {
+      setBusyIpAction(null);
     }
   }
 
@@ -826,8 +992,10 @@ export function AdminMonitoringConsole({
                   <div key={item.id} className="monitoring-action-highlight-item">
                     <div className="monitoring-action-highlight-top">
                       <span className="monitoring-action-badge">{describeActionType(item.action_type)}</span>
-                      <span className={`status-tag ${item.result_status === 'success' ? 'success' : 'failed'}`}>
-                        {item.result_status === 'success' ? '成功' : '失败'}
+                      <span
+                        className={`status-tag ${describeActionResultStatus(item.result_status).className}`}
+                      >
+                        {describeActionResultStatus(item.result_status).label}
                       </span>
                     </div>
                     <strong>{item.target_label || '未命名目标'}</strong>
@@ -937,6 +1105,107 @@ export function AdminMonitoringConsole({
                         <span>最后命中</span>
                         <strong>{formatAdminDateTime(ipUsers.ip.last_seen_at)}</strong>
                       </div>
+                    </div>
+
+                    <div className="monitoring-detail-toolbar">
+                      <div className="monitoring-detail-user-meta">
+                        <span>Cloudflare IP 处置</span>
+                        <span>
+                          {ipCloudflareStatus?.rule
+                            ? `${
+                                ipCloudflareStatus.rule.source === 'managed'
+                                  ? '福利站托管规则'
+                                  : '外部既有规则'
+                              } · ${
+                                ipCloudflareStatus.rule.modified_at
+                                  ? `最近更新 ${formatAdminDateTime(ipCloudflareStatus.rule.modified_at)}`
+                                  : '暂无更新时间'
+                              }`
+                            : '建议先托管质询，再根据复发情况升级为直接封禁'}
+                        </span>
+                      </div>
+
+                      <span
+                        className={`status-tag ${describeCloudflareStatus(ipCloudflareStatus).className}`}
+                      >
+                        {describeCloudflareStatus(ipCloudflareStatus).label}
+                      </span>
+                    </div>
+
+                    <div className="monitoring-cloudflare-card">
+                      {ipCloudflareLoading ? (
+                        <p className="loading-text">正在读取 Cloudflare 规则状态...</p>
+                      ) : (
+                        <>
+                          <div className="monitoring-cloudflare-meta">
+                            <span className="chip">
+                              命中规则 {ipCloudflareStatus?.matched_rule_count ?? 0} 条
+                            </span>
+                            {ipCloudflareStatus?.rule && (
+                              <span className="chip">
+                                {describeCloudflareMode(ipCloudflareStatus.rule.mode)}
+                              </span>
+                            )}
+                            <span className="chip">
+                              {ipCloudflareStatus?.enabled ? 'Cloudflare 已接通' : 'Cloudflare 未接通'}
+                            </span>
+                          </div>
+
+                          {ipCloudflareStatus?.disabled_reason && (
+                            <div className="monitoring-inline-note">
+                              <span className="monitoring-kicker">Cloudflare Note</span>
+                              <p>{ipCloudflareStatus.disabled_reason}</p>
+                            </div>
+                          )}
+
+                          {ipCloudflareStatus?.rule?.notes && (
+                            <div className="monitoring-inline-note monitoring-inline-note-muted">
+                              <span className="monitoring-kicker">Rule Notes</span>
+                              <p>{ipCloudflareStatus.rule.notes}</p>
+                            </div>
+                          )}
+
+                          <div className="monitoring-cloudflare-actions">
+                            <button
+                              className="button ghost"
+                              disabled={
+                                ipCloudflareLoading ||
+                                busyIpAction != null ||
+                                !ipCloudflareStatus?.enabled ||
+                                !ipCloudflareStatus.can_manage
+                              }
+                              onClick={() => void handleIpAction('challenge')}
+                            >
+                              {busyIpAction === 'challenge' ? '处理中...' : '托管质询'}
+                            </button>
+                            <button
+                              className="button ghost"
+                              disabled={
+                                ipCloudflareLoading ||
+                                busyIpAction != null ||
+                                !ipCloudflareStatus?.enabled ||
+                                !ipCloudflareStatus.can_manage
+                              }
+                              onClick={() => void handleIpAction('block')}
+                            >
+                              {busyIpAction === 'block' ? '处理中...' : '直接封禁'}
+                            </button>
+                            <button
+                              className="button ghost"
+                              disabled={
+                                ipCloudflareLoading ||
+                                busyIpAction != null ||
+                                !ipCloudflareStatus?.enabled ||
+                                !ipCloudflareStatus.can_manage ||
+                                !ipCloudflareStatus.rule
+                              }
+                              onClick={() => void handleIpAction('clear')}
+                            >
+                              {busyIpAction === 'clear' ? '处理中...' : '解除'}
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <div className="monitoring-related-list">
@@ -1318,7 +1587,7 @@ export function AdminMonitoringConsole({
           <div>
             <span className="monitoring-kicker">Action Ledger</span>
             <h3 className="monitoring-panel-title">处置审计</h3>
-            <p>所有手动禁用、恢复、风险释放和人工扫描都会在这里留档。</p>
+            <p>手动禁用、恢复、风险释放、人工扫描和 Cloudflare IP 处置都会在这里留档。</p>
           </div>
 
           <label className="field monitoring-filter-field">
@@ -1338,6 +1607,9 @@ export function AdminMonitoringConsole({
               <option value="enable_user">手动恢复</option>
               <option value="release_risk_event">释放风险事件</option>
               <option value="run_risk_scan">手动扫描</option>
+              <option value="cloudflare_challenge_ip">Cloudflare 质询</option>
+              <option value="cloudflare_block_ip">Cloudflare 封禁</option>
+              <option value="cloudflare_unblock_ip">Cloudflare 解除</option>
             </select>
           </label>
         </div>
@@ -1364,8 +1636,10 @@ export function AdminMonitoringConsole({
                   </div>
 
                   <div className="monitoring-ledger-side">
-                    <span className={`status-tag ${item.result_status === 'success' ? 'success' : 'failed'}`}>
-                      {item.result_status === 'success' ? '成功' : '失败'}
+                    <span
+                      className={`status-tag ${describeActionResultStatus(item.result_status).className}`}
+                    >
+                      {describeActionResultStatus(item.result_status).label}
                     </span>
                     <span className="chip">{formatAdminDateTime(item.created_at)}</span>
                   </div>

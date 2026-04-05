@@ -40,6 +40,12 @@
   - `SUB2API_TIMEOUT_MS`：请求超时毫秒数
   - `WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL`：清理已过期撤销 token 的周期，默认 `6h`
 
+- Cloudflare IP 处置（可选）
+  - `CLOUDFLARE_API_TOKEN`：Cloudflare API Token
+  - `CLOUDFLARE_ZONE_ID`：要操作的 Zone ID
+  - `CLOUDFLARE_TIMEOUT_MS`：Cloudflare API 请求超时毫秒数，默认 `10000`
+  - 只配置一半时不会阻止服务启动，但监控后台的 Cloudflare IP 处置会显示为未配置
+
 - 福利默认配置
   - `DEFAULT_CHECKIN_ENABLED`
   - `DEFAULT_DAILY_REWARD`
@@ -80,6 +86,8 @@ npm test
 - 登录、签到、兑换和后台写操作都已加入基础限流；如果对外暴露到公网，仍建议在 Nginx / CDN / WAF 层再加一层限流
 - 布尔环境变量会严格校验，拼错值会在启动时报错，而不是静默当成 `false`
 - 默认业务时区与启动白名单会在启动阶段校验，避免运行时才因非法配置报错
+- 监控主控台支持对单个共享 IP 发起 Cloudflare `托管质询 / 直接封禁 / 解除`
+- 为避免误封，后台只会接管由福利站自己创建的 Cloudflare IP 规则；若检测到外部已有规则或多个规则，会明确提示去 Cloudflare 后台人工处理
 - 签到记录新增 `updated_at`，用于识别超时 `pending` 记录
 - 用户重试签到时，若遇到超时的 `pending` 记录，系统会自动接管并继续发放流程
 - 失败签到重试会保留原始 `reward_balance`，不会因为后台后来改了奖励配置而漂移

@@ -18,11 +18,15 @@ const mockMonitoringService = vi.hoisted(() => ({
   getOverview: vi.fn(),
   listIps: vi.fn(),
   getIpUsers: vi.fn(),
+  getIpCloudflareStatus: vi.fn(),
   listUsers: vi.fn(),
   getUserIps: vi.fn(),
   listActions: vi.fn(),
   disableUser: vi.fn(),
   enableUser: vi.fn(),
+  challengeIp: vi.fn(),
+  blockIp: vi.fn(),
+  unblockIp: vi.fn(),
   recordRiskScanAction: vi.fn(),
   recordRiskReleaseAction: vi.fn()
 }));
@@ -38,7 +42,9 @@ const mockDistributionService = vi.hoisted(() => ({
 vi.mock('../services/monitoring-service.js', () => ({
   monitoringService: mockMonitoringService,
   MonitoringConflictError: class extends Error {},
-  MonitoringNotFoundError: class extends Error {}
+  MonitoringFeatureUnavailableError: class extends Error {},
+  MonitoringNotFoundError: class extends Error {},
+  MonitoringUpstreamError: class extends Error {}
 }));
 
 vi.mock('../services/distribution-detection-service.js', () => ({
@@ -141,6 +147,65 @@ describe('adminMonitoringRouter', () => {
 
     expect(response.status).toBe(409);
     expect(response.body.message).toBe('MONITORING_CONFLICT');
+  });
+
+  it('GET /ips/:ip/cloudflare 返回 Cloudflare IP 规则状态', async () => {
+    mockMonitoringService.getIpCloudflareStatus.mockResolvedValue({
+      ipAddress: '1.1.1.1',
+      enabled: true,
+      canManage: true,
+      disabledReason: '',
+      matchedRuleCount: 1,
+      rule: {
+        id: 'rule-1',
+        mode: 'managed_challenge',
+        source: 'managed',
+        notes: 'welfare-monitoring|mode=managed_challenge',
+        createdAt: '2026-04-05T08:00:00.000Z',
+        modifiedAt: '2026-04-05T08:05:00.000Z'
+      }
+    });
+
+    const app = await createTestApp();
+    const response = await request(app).get('/api/admin/monitoring/ips/1.1.1.1/cloudflare');
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.ip_address).toBe('1.1.1.1');
+    expect(response.body.data.rule.mode).toBe('managed_challenge');
+  });
+
+  it('POST /ips/:ip/block 在未配置 Cloudflare 时返回 503', async () => {
+    const { MonitoringFeatureUnavailableError } = await import('../services/monitoring-service.js');
+    mockMonitoringService.blockIp.mockRejectedValue(
+      new MonitoringFeatureUnavailableError('未配置 Cloudflare IP 访问规则集成')
+    );
+
+    const app = await createTestApp();
+    const response = await request(app)
+      .post('/api/admin/monitoring/ips/1.1.1.1/block')
+      .send({ reason: 'manual' });
+
+    expect(response.status).toBe(503);
+    expect(response.body.message).toBe('CLOUDFLARE_NOT_CONFIGURED');
+  });
+
+  it('DELETE /ips/:ip/cloudflare 返回解除后的状态', async () => {
+    mockMonitoringService.unblockIp.mockResolvedValue({
+      ipAddress: '1.1.1.1',
+      enabled: true,
+      canManage: true,
+      disabledReason: '',
+      matchedRuleCount: 0,
+      rule: null
+    });
+
+    const app = await createTestApp();
+    const response = await request(app)
+      .delete('/api/admin/monitoring/ips/1.1.1.1/cloudflare')
+      .send({});
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.item.rule).toBeNull();
   });
 
   it('POST /risk-events/scan 会记录扫描审计', async () => {

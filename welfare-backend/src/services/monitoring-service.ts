@@ -14,6 +14,15 @@ import { extractLinuxDoSubjectFromEmail } from '../utils/oauth.js';
 import { sessionStateService, SessionStateService } from './session-state-service.js';
 import { distributionDetectionService } from './distribution-detection-service.js';
 import {
+  cloudflareClient,
+  CloudflareClientConflictError,
+  CloudflareClientConfigError,
+  CloudflareClientRequestError,
+  type CloudflareClientLike,
+  type CloudflareIpAccessMode,
+  type CloudflareIpAccessRule
+} from './cloudflare-client.js';
+import {
   sub2apiClient,
   type AdminUsageLogRecord,
   type AdminUserRecord,
@@ -24,6 +33,7 @@ const MONITORING_WINDOW_1H_MS = 60 * 60 * 1000;
 const MONITORING_WINDOW_24H_MS = 24 * 60 * 60 * 1000;
 const MONITORING_USAGE_PAGE_SIZE = 200;
 const MONITORING_MAX_SAMPLE_USERS = 4;
+const CLOUDFLARE_MANAGED_RULE_PREFIX = 'welfare-monitoring|';
 
 interface LoggerLike {
   info(message: string): void;
@@ -154,6 +164,24 @@ export interface MonitoringUserItem {
   lastSeenAt: string;
 }
 
+export interface MonitoringIpCloudflareRule {
+  id: string;
+  mode: CloudflareIpAccessMode;
+  source: 'managed' | 'external';
+  notes: string;
+  createdAt: string | null;
+  modifiedAt: string | null;
+}
+
+export interface MonitoringIpCloudflareStatus {
+  ipAddress: string;
+  enabled: boolean;
+  canManage: boolean;
+  disabledReason: string;
+  matchedRuleCount: number;
+  rule: MonitoringIpCloudflareRule | null;
+}
+
 interface MonitoringIpDetail extends MonitoringIpItem {
   users: MonitoringIpUserItem[];
 }
@@ -186,6 +214,10 @@ interface MonitoringLiveCacheValue {
   generatedAt: string;
   entries: MonitoringUsageEntry[];
   expiresAtMs: number;
+}
+
+interface CloudflareRuleSnapshot extends CloudflareIpAccessRule {
+  source: 'managed' | 'external';
 }
 
 function toDateOnly(value: Date): string {
@@ -238,6 +270,27 @@ function buildSnapshotPoint(item: MonitoringSnapshot): MonitoringSnapshotPoint {
   };
 }
 
+function isManagedCloudflareRule(rule: CloudflareIpAccessRule): boolean {
+  return rule.notes.startsWith(CLOUDFLARE_MANAGED_RULE_PREFIX);
+}
+
+function describeCloudflareMode(mode: CloudflareIpAccessMode): string {
+  switch (mode) {
+    case 'managed_challenge':
+      return '托管质询';
+    case 'block':
+      return '直接封禁';
+    case 'challenge':
+      return '传统质询';
+    case 'js_challenge':
+      return 'JavaScript 质询';
+    case 'whitelist':
+      return '放行';
+    default:
+      return mode;
+  }
+}
+
 type WelfareRepositoryLike = Pick<WelfareRepository, 'listAdminWhitelist'>;
 
 type Sub2apiClientLike = Pick<
@@ -258,6 +311,20 @@ export class MonitoringConflictError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'MonitoringConflictError';
+  }
+}
+
+export class MonitoringFeatureUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MonitoringFeatureUnavailableError';
+  }
+}
+
+export class MonitoringUpstreamError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MonitoringUpstreamError';
   }
 }
 
@@ -595,6 +662,7 @@ export class MonitoringService {
     private readonly sub2api: Sub2apiClientLike,
     private readonly welfare: WelfareRepositoryLike,
     private readonly distribution: DistributionDetectionServiceLike,
+    private readonly cloudflare: CloudflareClientLike,
     private readonly logger: LoggerLike
   ) {}
 
@@ -673,23 +741,18 @@ export class MonitoringService {
     users: MonitoringIpUserItem[];
     generatedAt: string;
   }> {
-    const normalizedIp = normalizeIp(ipAddress);
-    if (!normalizedIp) {
-      throw new MonitoringNotFoundError('IP 不存在');
-    }
-
-    const aggregate = await this.getAggregateIndex();
-    const target = aggregate.ips.find((item) => item.ipAddress === normalizedIp);
-    if (!target) {
-      throw new MonitoringNotFoundError('未找到该 IP 的监控数据');
-    }
-
+    const { target, generatedAt } = await this.getIpDetailOrThrow(ipAddress);
     const { users, ...ip } = target;
     return {
       ip,
       users,
-      generatedAt: aggregate.generatedAt
+      generatedAt
     };
+  }
+
+  async getIpCloudflareStatus(ipAddress: string): Promise<MonitoringIpCloudflareStatus> {
+    const { target } = await this.getIpDetailOrThrow(ipAddress);
+    return this.inspectIpCloudflareRule(target.ipAddress);
   }
 
   async listUsers(params: {
@@ -824,6 +887,135 @@ export class MonitoringService {
     return updated;
   }
 
+  async challengeIp(
+    ipAddress: string,
+    operator: {
+      sub2apiUserId: number;
+      email: string;
+      username: string;
+    },
+    reason: string
+  ): Promise<MonitoringIpCloudflareStatus> {
+    return this.applyCloudflareRule(ipAddress, operator, reason, {
+      actionType: 'cloudflare_challenge_ip',
+      mode: 'managed_challenge'
+    });
+  }
+
+  async blockIp(
+    ipAddress: string,
+    operator: {
+      sub2apiUserId: number;
+      email: string;
+      username: string;
+    },
+    reason: string
+  ): Promise<MonitoringIpCloudflareStatus> {
+    return this.applyCloudflareRule(ipAddress, operator, reason, {
+      actionType: 'cloudflare_block_ip',
+      mode: 'block'
+    });
+  }
+
+  async unblockIp(
+    ipAddress: string,
+    operator: {
+      sub2apiUserId: number;
+      email: string;
+      username: string;
+    },
+    reason: string
+  ): Promise<MonitoringIpCloudflareStatus> {
+    const { target } = await this.getIpDetailOrThrow(ipAddress);
+
+    try {
+      const inspection = await this.inspectIpCloudflareRule(target.ipAddress);
+      if (!inspection.enabled) {
+        await this.recordCloudflareAction(operator, {
+          actionType: 'cloudflare_unblock_ip',
+          ipAddress: target.ipAddress,
+          reason,
+          resultStatus: 'blocked',
+          detail: inspection.disabledReason,
+          metadata: {
+            matched_rule_count: inspection.matchedRuleCount
+          }
+        });
+        throw new MonitoringFeatureUnavailableError(inspection.disabledReason);
+      }
+
+      if (!inspection.canManage) {
+        await this.recordCloudflareAction(operator, {
+          actionType: 'cloudflare_unblock_ip',
+          ipAddress: target.ipAddress,
+          reason,
+          resultStatus: 'blocked',
+          detail: inspection.disabledReason,
+          metadata: {
+            matched_rule_count: inspection.matchedRuleCount,
+            cloudflare_rule_id: inspection.rule?.id ?? null,
+            current_mode: inspection.rule?.mode ?? null,
+            rule_source: inspection.rule?.source ?? null
+          }
+        });
+        throw new MonitoringConflictError(inspection.disabledReason);
+      }
+
+      if (!inspection.rule) {
+        const result = {
+          ...inspection,
+          rule: null
+        };
+        await this.recordCloudflareAction(operator, {
+          actionType: 'cloudflare_unblock_ip',
+          ipAddress: target.ipAddress,
+          reason,
+          resultStatus: 'success',
+          detail: '未发现由福利站托管的 Cloudflare 规则，无需解除',
+          metadata: {
+            matched_rule_count: 0
+          }
+        });
+        return result;
+      }
+
+      await this.cloudflare.deleteIpAccessRule(inspection.rule.id);
+      const nextStatus = {
+        ...inspection,
+        matchedRuleCount: 0,
+        rule: null
+      };
+      await this.recordCloudflareAction(operator, {
+        actionType: 'cloudflare_unblock_ip',
+        ipAddress: target.ipAddress,
+        reason,
+        resultStatus: 'success',
+        detail: `已解除该 IP 的 Cloudflare ${describeCloudflareMode(inspection.rule.mode)}规则`,
+        metadata: {
+          matched_rule_count: inspection.matchedRuleCount,
+          cloudflare_rule_id: inspection.rule.id,
+          previous_mode: inspection.rule.mode,
+          rule_source: inspection.rule.source
+        }
+      });
+      return nextStatus;
+    } catch (error) {
+      if (
+        error instanceof MonitoringFeatureUnavailableError ||
+        error instanceof MonitoringConflictError
+      ) {
+        throw error;
+      }
+      throw await this.handleCloudflareActionFailure(
+        error,
+        operator,
+        'cloudflare_unblock_ip',
+        target.ipAddress,
+        reason
+      );
+    }
+  }
+
   async recordRiskScanAction(
     operator: {
       sub2apiUserId: number;
@@ -888,6 +1080,124 @@ export class MonitoringService {
     this.invalidateCache();
   }
 
+  private async applyCloudflareRule(
+    ipAddress: string,
+    operator: {
+      sub2apiUserId: number;
+      email: string;
+      username: string;
+    },
+    reason: string,
+    input: {
+      actionType: Extract<
+        MonitoringActionType,
+        'cloudflare_challenge_ip' | 'cloudflare_block_ip'
+      >;
+      mode: Extract<CloudflareIpAccessMode, 'managed_challenge' | 'block'>;
+    }
+  ): Promise<MonitoringIpCloudflareStatus> {
+    const { target } = await this.getIpDetailOrThrow(ipAddress);
+
+    try {
+      const inspection = await this.inspectIpCloudflareRule(target.ipAddress);
+      if (!inspection.enabled) {
+        await this.recordCloudflareAction(operator, {
+          actionType: input.actionType,
+          ipAddress: target.ipAddress,
+          reason,
+          resultStatus: 'blocked',
+          detail: inspection.disabledReason,
+          metadata: {
+            matched_rule_count: inspection.matchedRuleCount
+          }
+        });
+        throw new MonitoringFeatureUnavailableError(inspection.disabledReason);
+      }
+
+      if (!inspection.canManage) {
+        await this.recordCloudflareAction(operator, {
+          actionType: input.actionType,
+          ipAddress: target.ipAddress,
+          reason,
+          resultStatus: 'blocked',
+          detail: inspection.disabledReason,
+          metadata: {
+            matched_rule_count: inspection.matchedRuleCount,
+            cloudflare_rule_id: inspection.rule?.id ?? null,
+            current_mode: inspection.rule?.mode ?? null,
+            rule_source: inspection.rule?.source ?? null
+          }
+        });
+        throw new MonitoringConflictError(inspection.disabledReason);
+      }
+
+      const notes = this.buildCloudflareNotes(input.mode, operator, reason);
+      const previousMode = inspection.rule?.mode ?? null;
+      const rule =
+        inspection.rule == null
+          ? await this.cloudflare.createIpAccessRule({
+              ipAddress: target.ipAddress,
+              mode: input.mode,
+              notes
+            })
+          : await this.cloudflare.updateIpAccessRule({
+              ruleId: inspection.rule.id,
+              mode: input.mode,
+              notes
+            });
+
+      const detail =
+        previousMode == null
+          ? `已为该 IP 开启 Cloudflare ${describeCloudflareMode(rule.mode)}`
+          : previousMode === rule.mode
+            ? `该 IP 已存在 Cloudflare ${describeCloudflareMode(rule.mode)}，已刷新备注`
+            : `已将该 IP 的 Cloudflare 规则从 ${describeCloudflareMode(previousMode)}调整为 ${describeCloudflareMode(rule.mode)}`;
+
+      const result = this.buildCloudflareStatus(target.ipAddress, {
+        enabled: true,
+        canManage: true,
+        disabledReason: '',
+        matchedRuleCount: 1,
+        rule: {
+          ...rule,
+          source: 'managed'
+        }
+      });
+
+      await this.recordCloudflareAction(operator, {
+        actionType: input.actionType,
+        ipAddress: target.ipAddress,
+        reason,
+        resultStatus: 'success',
+        detail,
+        metadata: {
+          matched_rule_count: inspection.matchedRuleCount,
+          cloudflare_rule_id: rule.id,
+          previous_mode: previousMode,
+          next_mode: rule.mode,
+          rule_source: 'managed'
+        }
+      });
+
+      return result;
+    } catch (error) {
+      if (
+        error instanceof MonitoringFeatureUnavailableError ||
+        error instanceof MonitoringConflictError
+      ) {
+        throw error;
+      }
+
+      throw await this.handleCloudflareActionFailure(
+        error,
+        operator,
+        input.actionType,
+        target.ipAddress,
+        reason
+      );
+    }
+  }
+
   async captureSnapshot(): Promise<MonitoringSnapshot> {
     const [aggregate, riskOverview] = await Promise.all([
       this.getAggregateIndex(true),
@@ -905,6 +1215,253 @@ export class MonitoringService {
       sharedIpCount1h: aggregate.summary.sharedIpCount1h,
       sharedIpCount24h: aggregate.summary.sharedIpCount24h
     });
+  }
+
+  private async getIpDetailOrThrow(ipAddress: string): Promise<{
+    target: MonitoringIpDetail;
+    generatedAt: string;
+  }> {
+    const normalizedIp = normalizeIp(ipAddress);
+    if (!normalizedIp) {
+      throw new MonitoringNotFoundError('IP 不存在');
+    }
+
+    const aggregate = await this.getAggregateIndex();
+    const target = aggregate.ips.find((item) => item.ipAddress === normalizedIp);
+    if (!target) {
+      throw new MonitoringNotFoundError('未找到该 IP 的监控数据');
+    }
+
+    return {
+      target,
+      generatedAt: aggregate.generatedAt
+    };
+  }
+
+  private async inspectIpCloudflareRule(ipAddress: string): Promise<MonitoringIpCloudflareStatus> {
+    if (!this.cloudflare.isConfigured()) {
+      return this.buildCloudflareStatus(ipAddress, {
+        enabled: false,
+        canManage: false,
+        disabledReason: this.cloudflare.getDisabledReason(),
+        matchedRuleCount: 0,
+        rule: null
+      });
+    }
+
+    try {
+      const rules = await this.cloudflare.listIpAccessRules(ipAddress);
+      const managedRules = rules.filter((item) => isManagedCloudflareRule(item));
+      const externalRules = rules.filter((item) => !isManagedCloudflareRule(item));
+
+      if (
+        managedRules.length > 1 ||
+        externalRules.length > 1 ||
+        (managedRules.length > 0 && externalRules.length > 0)
+      ) {
+        return this.buildCloudflareStatus(ipAddress, {
+          enabled: true,
+          canManage: false,
+          disabledReason: '检测到多个 Cloudflare 规则命中该 IP。为避免误操作，请直接去 Cloudflare 后台处理。',
+          matchedRuleCount: rules.length,
+          rule: this.toCloudflareRuleSnapshot(managedRules[0] ?? externalRules[0] ?? null)
+        });
+      }
+
+      if (externalRules.length === 1) {
+        return this.buildCloudflareStatus(ipAddress, {
+          enabled: true,
+          canManage: false,
+          disabledReason:
+            '该 IP 已存在非福利站托管的 Cloudflare 规则。为避免覆盖，请直接去 Cloudflare 后台处理。',
+          matchedRuleCount: 1,
+          rule: this.toCloudflareRuleSnapshot(externalRules[0]!)
+        });
+      }
+
+      if (managedRules.length === 1) {
+        return this.buildCloudflareStatus(ipAddress, {
+          enabled: true,
+          canManage: true,
+          disabledReason: '',
+          matchedRuleCount: 1,
+          rule: this.toCloudflareRuleSnapshot(managedRules[0]!)
+        });
+      }
+
+      return this.buildCloudflareStatus(ipAddress, {
+        enabled: true,
+        canManage: true,
+        disabledReason: '',
+        matchedRuleCount: 0,
+        rule: null
+      });
+    } catch (error) {
+      if (error instanceof CloudflareClientConfigError) {
+        return this.buildCloudflareStatus(ipAddress, {
+          enabled: false,
+          canManage: false,
+          disabledReason: error.message,
+          matchedRuleCount: 0,
+          rule: null
+        });
+      }
+
+      if (error instanceof CloudflareClientConflictError) {
+        throw new MonitoringConflictError(error.message);
+      }
+
+      if (error instanceof CloudflareClientRequestError) {
+        throw new MonitoringUpstreamError(`读取 Cloudflare 规则失败：${error.message}`);
+      }
+
+      throw error;
+    }
+  }
+
+  private buildCloudflareStatus(
+    ipAddress: string,
+    input: Omit<MonitoringIpCloudflareStatus, 'ipAddress' | 'rule'> & {
+      rule: CloudflareRuleSnapshot | null;
+    }
+  ): MonitoringIpCloudflareStatus {
+    return {
+      ipAddress,
+      enabled: input.enabled,
+      canManage: input.canManage,
+      disabledReason: input.disabledReason,
+      matchedRuleCount: input.matchedRuleCount,
+      rule: input.rule
+        ? {
+            id: input.rule.id,
+            mode: input.rule.mode,
+            source: input.rule.source,
+            notes: input.rule.notes,
+            createdAt: input.rule.createdAt,
+            modifiedAt: input.rule.modifiedAt
+          }
+        : null
+    };
+  }
+
+  private toCloudflareRuleSnapshot(rule: CloudflareIpAccessRule | null): CloudflareRuleSnapshot | null {
+    if (!rule) {
+      return null;
+    }
+
+    return {
+      ...rule,
+      source: isManagedCloudflareRule(rule) ? 'managed' : 'external'
+    };
+  }
+
+  private buildCloudflareNotes(
+    mode: Extract<CloudflareIpAccessMode, 'managed_challenge' | 'block'>,
+    operator: {
+      sub2apiUserId: number;
+      email: string;
+      username: string;
+    },
+    reason: string
+  ): string {
+    const parts = [
+      CLOUDFLARE_MANAGED_RULE_PREFIX.slice(0, -1),
+      `mode=${mode}`,
+      `operator_id=${operator.sub2apiUserId}`,
+      `operator=${(operator.username || operator.email).trim() || operator.email}`,
+      `at=${new Date().toISOString()}`
+    ];
+    const normalizedReason = reason.trim().replace(/\s+/g, ' ');
+    if (normalizedReason) {
+      parts.push(`reason=${normalizedReason}`);
+    }
+    return parts.join('|').slice(0, 500);
+  }
+
+  private async recordCloudflareAction(
+    operator: {
+      sub2apiUserId: number;
+      email: string;
+      username: string;
+    },
+    input: {
+      actionType: Extract<
+        MonitoringActionType,
+        'cloudflare_challenge_ip' | 'cloudflare_block_ip' | 'cloudflare_unblock_ip'
+      >;
+      ipAddress: string;
+      reason: string;
+      resultStatus: 'success' | 'failed' | 'blocked';
+      detail: string;
+      metadata?: Record<string, unknown>;
+    }
+  ): Promise<void> {
+    await this.repository.createAction({
+      actionType: input.actionType,
+      targetType: 'ip',
+      targetId: null,
+      targetLabel: input.ipAddress,
+      operatorSub2apiUserId: operator.sub2apiUserId,
+      operatorEmail: operator.email,
+      operatorUsername: operator.username,
+      reason: input.reason,
+      resultStatus: input.resultStatus,
+      detail: input.detail,
+      metadata: {
+        ip_address: input.ipAddress,
+        ...(input.metadata ?? {})
+      }
+    });
+  }
+
+  private async handleCloudflareActionFailure(
+    error: unknown,
+    operator: {
+      sub2apiUserId: number;
+      email: string;
+      username: string;
+    },
+    actionType: Extract<
+      MonitoringActionType,
+      'cloudflare_challenge_ip' | 'cloudflare_block_ip' | 'cloudflare_unblock_ip'
+    >,
+    ipAddress: string,
+    reason: string
+  ): Promise<Error> {
+    if (error instanceof CloudflareClientConfigError) {
+      await this.recordCloudflareAction(operator, {
+        actionType,
+        ipAddress,
+        reason,
+        resultStatus: 'blocked',
+        detail: error.message
+      });
+      return new MonitoringFeatureUnavailableError(error.message);
+    }
+
+    if (error instanceof CloudflareClientConflictError) {
+      await this.recordCloudflareAction(operator, {
+        actionType,
+        ipAddress,
+        reason,
+        resultStatus: 'blocked',
+        detail: error.message
+      });
+      return new MonitoringConflictError(error.message);
+    }
+
+    if (error instanceof CloudflareClientRequestError) {
+      await this.recordCloudflareAction(operator, {
+        actionType,
+        ipAddress,
+        reason,
+        resultStatus: 'failed',
+        detail: `Cloudflare API 调用失败：${error.message}`
+      });
+      return new MonitoringUpstreamError(`Cloudflare 规则操作失败：${error.message}`);
+    }
+
+    return error instanceof Error ? error : new Error('Cloudflare 规则操作失败');
   }
 
   private invalidateCache() {
@@ -1099,5 +1656,6 @@ export const monitoringService = new MonitoringService(
   sub2apiClient,
   new WelfareRepository(pool),
   distributionDetectionService,
+  cloudflareClient,
   console
 );

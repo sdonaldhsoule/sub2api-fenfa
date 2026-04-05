@@ -91,4 +91,15 @@ describe('config', () => {
       'WELFARE_MONITOR_BLOCK_IP_THRESHOLD 必须大于 WELFARE_MONITOR_OBSERVE_IP_THRESHOLD'
     );
   });
+
+  it('在 Cloudflare 只配置一半时关闭功能而不阻止启动', async () => {
+    process.env.CLOUDFLARE_API_TOKEN = 'token-only';
+
+    const { config } = await import('./config.js');
+
+    expect(config.CLOUDFLARE_IP_ACCESS_ENABLED).toBe(false);
+    expect(config.CLOUDFLARE_IP_ACCESS_DISABLED_REASON).toContain(
+      'CLOUDFLARE_API_TOKEN 与 CLOUDFLARE_ZONE_ID 需要同时配置'
+    );
+  });
 });

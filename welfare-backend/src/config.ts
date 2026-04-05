@@ -20,6 +20,13 @@ const booleanFromString = z.preprocess((value) => {
   return value;
 }, z.boolean().optional());
 
+const optionalTrimmedString = z.preprocess((value) => {
+  if (value == null) return undefined;
+  if (typeof value !== 'string') return value;
+  const normalized = value.trim();
+  return normalized === '' ? undefined : normalized;
+}, z.string().optional());
+
 function parseDurationMs(value: string, fieldName: string): number {
   const normalized = value.trim().toLowerCase();
   const match = normalized.match(
@@ -97,6 +104,9 @@ const configSchema = z.object({
   SUB2API_BASE_URL: z.string().url('SUB2API_BASE_URL 必须是合法 URL'),
   SUB2API_ADMIN_API_KEY: z.string().min(1, 'SUB2API_ADMIN_API_KEY 不能为空'),
   SUB2API_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  CLOUDFLARE_API_TOKEN: optionalTrimmedString,
+  CLOUDFLARE_ZONE_ID: optionalTrimmedString,
+  CLOUDFLARE_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL: z.string().default('6h'),
   WELFARE_MONITOR_SCAN_INTERVAL: z.string().default('5m'),
   WELFARE_MONITOR_SNAPSHOT_INTERVAL: z.string().default('1h'),
@@ -182,6 +192,12 @@ parseDurationMs(raw.WELFARE_JWT_EXPIRES_IN, 'WELFARE_JWT_EXPIRES_IN');
 
 const frontendOrigin = normalizeOrigin(raw.WELFARE_FRONTEND_URL, 'WELFARE_FRONTEND_URL');
 const sub2apiOrigin = normalizeOrigin(raw.SUB2API_BASE_URL, 'SUB2API_BASE_URL');
+const cloudflareEnabled = Boolean(raw.CLOUDFLARE_API_TOKEN && raw.CLOUDFLARE_ZONE_ID);
+const cloudflareDisabledReason = cloudflareEnabled
+  ? ''
+  : raw.CLOUDFLARE_API_TOKEN || raw.CLOUDFLARE_ZONE_ID
+    ? 'CLOUDFLARE_API_TOKEN 与 CLOUDFLARE_ZONE_ID 需要同时配置'
+    : '未配置 Cloudflare IP 访问规则集成';
 const configuredCorsOrigins = raw.WELFARE_CORS_ORIGINS.split(',')
   .map((item) => item.trim())
   .filter(Boolean)
@@ -248,7 +264,11 @@ export const config = {
   BOOTSTRAP_ADMIN_SUBJECTS: bootstrapAdminSubjects,
   BOOTSTRAP_ADMIN_EMAILS: bootstrapAdminEmails,
   SUB2API_BASE_URL: raw.SUB2API_BASE_URL.replace(/\/+$/, ''),
-  SUB2API_ORIGIN: sub2apiOrigin
+  SUB2API_ORIGIN: sub2apiOrigin,
+  CLOUDFLARE_API_TOKEN: raw.CLOUDFLARE_API_TOKEN ?? null,
+  CLOUDFLARE_ZONE_ID: raw.CLOUDFLARE_ZONE_ID ?? null,
+  CLOUDFLARE_IP_ACCESS_ENABLED: cloudflareEnabled,
+  CLOUDFLARE_IP_ACCESS_DISABLED_REASON: cloudflareDisabledReason
 };
 
 export type AppConfig = typeof config;

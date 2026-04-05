@@ -208,11 +208,16 @@ export class MonitoringRepository {
     const actionType =
       row.action_type === 'disable_user' ||
       row.action_type === 'enable_user' ||
-      row.action_type === 'release_risk_event'
+      row.action_type === 'release_risk_event' ||
+      row.action_type === 'cloudflare_challenge_ip' ||
+      row.action_type === 'cloudflare_block_ip' ||
+      row.action_type === 'cloudflare_unblock_ip'
         ? row.action_type
         : 'run_risk_scan';
     const targetType =
-      row.target_type === 'user' || row.target_type === 'risk_event'
+      row.target_type === 'user' ||
+      row.target_type === 'risk_event' ||
+      row.target_type === 'ip'
         ? row.target_type
         : 'scan';
     const resultStatus =

@@ -8,6 +8,7 @@ import type {
   AdminCheckinRetryResult,
   AdminMonitoringActionList,
   AdminMonitoringActionType,
+  AdminMonitoringIpCloudflareStatus,
   AdminMonitoringIpList,
   AdminMonitoringIpUsersResponse,
   AdminMonitoringOverview,
@@ -246,6 +247,34 @@ export const api = {
   getAdminMonitoringIpUsers: (ipAddress: string) =>
     request<AdminMonitoringIpUsersResponse>(
       `/api/admin/monitoring/ips/${encodeURIComponent(ipAddress)}/users`
+    ),
+  getAdminMonitoringIpCloudflareStatus: (ipAddress: string) =>
+    request<AdminMonitoringIpCloudflareStatus>(
+      `/api/admin/monitoring/ips/${encodeURIComponent(ipAddress)}/cloudflare`
+    ),
+  challengeAdminMonitoringIp: (ipAddress: string, payload: { reason?: string } = {}) =>
+    request<{ item: AdminMonitoringIpCloudflareStatus }>(
+      `/api/admin/monitoring/ips/${encodeURIComponent(ipAddress)}/challenge`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }
+    ),
+  blockAdminMonitoringIp: (ipAddress: string, payload: { reason?: string } = {}) =>
+    request<{ item: AdminMonitoringIpCloudflareStatus }>(
+      `/api/admin/monitoring/ips/${encodeURIComponent(ipAddress)}/block`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }
+    ),
+  clearAdminMonitoringIpCloudflare: (ipAddress: string, payload: { reason?: string } = {}) =>
+    request<{ item: AdminMonitoringIpCloudflareStatus }>(
+      `/api/admin/monitoring/ips/${encodeURIComponent(ipAddress)}/cloudflare`,
+      {
+        method: 'DELETE',
+        body: JSON.stringify(payload)
+      }
     ),
   listAdminMonitoringUsers: (params: {
     page?: number;

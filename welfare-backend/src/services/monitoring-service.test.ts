@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 process.env.DATABASE_URL ??= 'postgres://localhost:5432/test';
 process.env.WELFARE_FRONTEND_URL ??= 'http://localhost:5173';
@@ -74,5 +74,77 @@ describe('buildMonitoringAggregateIndex', () => {
     expect(result.users[0]?.riskStatus).toBe('active');
     expect(result.ips[0]?.ipAddress).toBe('2.2.2.2');
     expect(result.ips[0]?.userCount24h).toBe(2);
+  });
+});
+
+describe('MonitoringService Cloudflare', () => {
+  it('检测到外部 Cloudflare 规则时禁止面板覆盖', async () => {
+    const { MonitoringService } = await import('./monitoring-service.js');
+
+    const service = new MonitoringService(
+      {
+        listActions: vi.fn(),
+        listSnapshots: vi.fn(),
+        createAction: vi.fn(),
+        saveSnapshot: vi.fn(),
+        purgeSnapshotsOlderThan: vi.fn()
+      } as never,
+      {
+        listRiskEventsForStatuses: vi.fn().mockResolvedValue([])
+      } as never,
+      {
+        bumpSessionVersion: vi.fn()
+      } as never,
+      {
+        listAdminUsageLogs: vi.fn().mockResolvedValue({
+          items: [
+            {
+              userId: 7,
+              createdAt: '2026-04-05T09:55:00.000Z',
+              ipAddress: '1.1.1.1',
+              user: {
+                id: 7,
+                email: 'u7@example.com',
+                username: 'u7',
+                role: 'user',
+                status: 'active'
+              }
+            }
+          ],
+          pages: 1
+        }),
+        getAdminUserById: vi.fn(),
+        updateAdminUserStatus: vi.fn()
+      } as never,
+      {
+        listAdminWhitelist: vi.fn().mockResolvedValue([])
+      } as never,
+      {
+        getOverview: vi.fn()
+      } as never,
+      {
+        isConfigured: vi.fn().mockReturnValue(true),
+        getDisabledReason: vi.fn().mockReturnValue(''),
+        listIpAccessRules: vi.fn().mockResolvedValue([
+          {
+            id: 'cf-rule-1',
+            mode: 'block',
+            target: 'ip',
+            value: '1.1.1.1',
+            notes: 'manual-cloudflare-rule',
+            createdAt: '2026-04-05T09:00:00.000Z',
+            modifiedAt: '2026-04-05T09:10:00.000Z'
+          }
+        ])
+      } as never,
+      console
+    );
+
+    const result = await service.getIpCloudflareStatus('1.1.1.1');
+
+    expect(result.enabled).toBe(true);
+    expect(result.canManage).toBe(false);
+    expect(result.rule?.source).toBe('external');
+    expect(result.disabledReason).toContain('非福利站托管');
   });
 });

@@ -256,7 +256,10 @@ export type AdminMonitoringActionType =
   | 'disable_user'
   | 'enable_user'
   | 'release_risk_event'
-  | 'run_risk_scan';
+  | 'run_risk_scan'
+  | 'cloudflare_challenge_ip'
+  | 'cloudflare_block_ip'
+  | 'cloudflare_unblock_ip';
 
 export interface AdminMonitoringSnapshotPoint {
   snapshot_at: string;
@@ -273,14 +276,14 @@ export interface AdminMonitoringSnapshotPoint {
 export interface AdminMonitoringActionItem {
   id: number;
   action_type: AdminMonitoringActionType;
-  target_type: 'user' | 'risk_event' | 'scan';
+  target_type: 'user' | 'risk_event' | 'scan' | 'ip';
   target_id: number | null;
   target_label: string;
   operator_sub2api_user_id: number;
   operator_email: string;
   operator_username: string;
   reason: string;
-  result_status: 'success' | 'failed';
+  result_status: 'success' | 'failed' | 'blocked';
   detail: string;
   metadata: Record<string, unknown>;
   created_at: string;
@@ -375,6 +378,22 @@ export interface AdminMonitoringIpUsersResponse {
   items: AdminMonitoringIpUserItem[];
   total: number;
   generated_at: string;
+}
+
+export interface AdminMonitoringIpCloudflareStatus {
+  ip_address: string;
+  enabled: boolean;
+  can_manage: boolean;
+  disabled_reason: string;
+  matched_rule_count: number;
+  rule: {
+    id: string;
+    mode: 'block' | 'challenge' | 'managed_challenge' | 'js_challenge' | 'whitelist';
+    source: 'managed' | 'external';
+    notes: string;
+    created_at: string | null;
+    modified_at: string | null;
+  } | null;
 }
 
 export interface AdminMonitoringUserItem {
