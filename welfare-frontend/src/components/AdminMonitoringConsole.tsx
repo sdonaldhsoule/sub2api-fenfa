@@ -446,32 +446,36 @@ export function AdminMonitoringConsole({
     }
   }
 
-  async function loadIpCloudflareStatus(ipAddress: string) {
-    setIpCloudflareLoading(true);
-    try {
-      const result = await api.getAdminMonitoringIpCloudflareStatus(ipAddress);
-      setIpCloudflareStatus(result);
-    } catch (error) {
-      setIpCloudflareStatus(null);
-      await handleRequestError(error, 'Cloudflare IP 状态加载失败');
-    } finally {
-      setIpCloudflareLoading(false);
-    }
-  }
-
   async function loadIpUsers(ipAddress: string) {
     setIpUsersLoading(true);
+    setIpCloudflareLoading(true);
     try {
-      const result = await api.getAdminMonitoringIpUsers(ipAddress);
-      setSelectedIp(result.ip.ip_address);
-      setIpUsers(result);
-      await loadIpCloudflareStatus(result.ip.ip_address);
+      const [usersResult, cloudflareResult] = await Promise.allSettled([
+        api.getAdminMonitoringIpUsers(ipAddress),
+        api.getAdminMonitoringIpCloudflareStatus(ipAddress)
+      ]);
+
+      if (usersResult.status === 'fulfilled') {
+        setSelectedIp(usersResult.value.ip.ip_address);
+        setIpUsers(usersResult.value);
+      } else {
+        setIpUsers(null);
+        await handleRequestError(usersResult.reason, 'IP 关联用户加载失败');
+      }
+
+      if (cloudflareResult.status === 'fulfilled') {
+        setIpCloudflareStatus(cloudflareResult.value);
+      } else {
+        setIpCloudflareStatus(null);
+        await handleRequestError(cloudflareResult.reason, 'Cloudflare IP 状态加载失败');
+      }
     } catch (error) {
       setIpUsers(null);
       setIpCloudflareStatus(null);
       await handleRequestError(error, 'IP 关联用户加载失败');
     } finally {
       setIpUsersLoading(false);
+      setIpCloudflareLoading(false);
     }
   }
 
@@ -493,7 +497,10 @@ export function AdminMonitoringConsole({
         return;
       }
 
-      await loadIpUsers(nextIp);
+      setSelectedIp(nextIp);
+      if (nextIp === selectedIp) {
+        void loadIpUsers(nextIp);
+      }
     } catch (error) {
       await handleRequestError(error, 'IP 榜单加载失败');
     } finally {
@@ -532,7 +539,10 @@ export function AdminMonitoringConsole({
         return;
       }
 
-      await loadUserIps(nextUserId);
+      setSelectedUserId(nextUserId);
+      if (nextUserId === selectedUserId) {
+        void loadUserIps(nextUserId);
+      }
     } catch (error) {
       await handleRequestError(error, '用户榜单加载失败');
     } finally {
@@ -620,6 +630,22 @@ export function AdminMonitoringConsole({
   useEffect(() => {
     void loadUsers(userFilters);
   }, [userFilters, refreshSignal]);
+
+  useEffect(() => {
+    if (!selectedIp) {
+      return;
+    }
+
+    void loadIpUsers(selectedIp);
+  }, [selectedIp]);
+
+  useEffect(() => {
+    if (selectedUserId == null) {
+      return;
+    }
+
+    void loadUserIps(selectedUserId);
+  }, [selectedUserId]);
 
   useEffect(() => {
     void loadActions(actionFilters, actionTypeFilter || undefined);
@@ -1034,7 +1060,7 @@ export function AdminMonitoringConsole({
                     <button
                       key={item.ip_address}
                       className={`monitoring-rank-row ${selectedIp === item.ip_address ? 'active' : ''}`}
-                      onClick={() => void loadIpUsers(item.ip_address)}
+                      onClick={() => setSelectedIp(item.ip_address)}
                     >
                       <div className="monitoring-rank-main">
                         <strong>{item.ip_address}</strong>
@@ -1269,7 +1295,7 @@ export function AdminMonitoringConsole({
                     <button
                       key={item.sub2api_user_id}
                       className={`monitoring-rank-row ${selectedUserId === item.sub2api_user_id ? 'active' : ''}`}
-                      onClick={() => void loadUserIps(item.sub2api_user_id)}
+                      onClick={() => setSelectedUserId(item.sub2api_user_id)}
                     >
                       <div className="monitoring-rank-main">
                         <strong>{getUserPrimaryLabel(item)}</strong>
