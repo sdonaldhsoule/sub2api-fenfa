@@ -44,6 +44,7 @@ describe('createApp', () => {
       path.join(staticDir, 'index.html'),
       '<!doctype html><html><body>frontend-shell</body></html>'
     );
+    await writeFile(path.join(staticDir, 'app.js'), 'console.log("ok");');
     applyBaseEnv();
     vi.resetModules();
   });
@@ -76,5 +77,28 @@ describe('createApp', () => {
       .expect(404);
 
     expect(response.body.message).toBe('NOT_FOUND');
+  });
+
+  it('静态资源请求不会被 API CORS 配置拦截', async () => {
+    const { createApp } = await import('./app.js');
+
+    const response = await request(createApp())
+      .get('/app.js')
+      .set('Origin', 'https://fuli.qquu.ccwu.cc')
+      .expect(200);
+
+    expect(response.text).toContain('console.log');
+    expect(response.headers['content-type']).toContain('javascript');
+  });
+
+  it('不允许的跨域 API 请求仍然会被拒绝', async () => {
+    const { createApp } = await import('./app.js');
+
+    const response = await request(createApp())
+      .get('/api/unknown')
+      .set('Origin', 'https://fuli.qquu.ccwu.cc')
+      .expect(403);
+
+    expect(response.body.message).toBe('FORBIDDEN');
   });
 });

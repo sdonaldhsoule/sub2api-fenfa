@@ -20,6 +20,20 @@ const frontendIndexFile = path.join(frontendDistDir, 'index.html');
 
 export function createApp() {
   const app = express();
+  const apiCors = cors({
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (config.WELFARE_CORS_ORIGINS.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`${CORS_ERROR_PREFIX}${origin}`));
+    },
+    maxAge: 600
+  });
 
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -30,22 +44,6 @@ export function createApp() {
     next();
   });
   app.use(express.json({ limit: '1mb' }));
-  app.use(
-    cors({
-      origin(origin, callback) {
-        if (!origin) {
-          callback(null, true);
-          return;
-        }
-        if (config.WELFARE_CORS_ORIGINS.includes(origin)) {
-          callback(null, true);
-          return;
-        }
-        callback(new Error(`${CORS_ERROR_PREFIX}${origin}`));
-      },
-      maxAge: 600
-    })
-  );
 
   app.get('/healthz', (_req, res) => {
     ok(res, {
@@ -54,6 +52,7 @@ export function createApp() {
     });
   });
 
+  app.use('/api', apiCors);
   app.use('/api/auth', authRouter);
   app.use('/api/checkin', checkinRouter);
   app.use('/api/redeem-codes', redeemRouter);
