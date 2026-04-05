@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
 import { config } from './config.js';
@@ -9,6 +12,11 @@ import { resetRouter } from './routes/reset-routes.js';
 import { ok } from './utils/response.js';
 
 const CORS_ERROR_PREFIX = 'CORS_ORIGIN_NOT_ALLOWED:';
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const frontendDistDir = process.env.WELFARE_STATIC_DIR?.trim()
+  ? path.resolve(process.env.WELFARE_STATIC_DIR)
+  : path.resolve(currentDir, 'public');
+const frontendIndexFile = path.join(frontendDistDir, 'index.html');
 
 export function createApp() {
   const app = express();
@@ -51,6 +59,19 @@ export function createApp() {
   app.use('/api/redeem-codes', redeemRouter);
   app.use('/api/reset', resetRouter);
   app.use('/api/admin', adminRouter);
+
+  if (fs.existsSync(frontendIndexFile)) {
+    app.use(express.static(frontendDistDir, { index: false }));
+    app.get('*', (req, res, next) => {
+      const isApiRequest = req.path === '/api' || req.path.startsWith('/api/');
+      if (isApiRequest || !req.accepts('html')) {
+        next();
+        return;
+      }
+
+      res.sendFile(frontendIndexFile);
+    });
+  }
 
   app.use((req, res) => {
     res.status(404).json({

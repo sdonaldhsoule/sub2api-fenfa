@@ -1,0 +1,16 @@
+.git
+.github
+.claude
+.playwright-mcp
+node_modules
+**/node_modules
+dist
+**/dist
+coverage
+**/coverage
+.env
+.env.*
+*.log
+docker-compose*.yml
+check-linuxdo-home.png
+login-page-preview.png

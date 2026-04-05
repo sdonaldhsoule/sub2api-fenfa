@@ -11,6 +11,7 @@
 - `VITE_WELFARE_API_BASE`：福利后端地址，如 `http://localhost:8787`
   - 支持绝对地址：`https://example.com/welfare-backend`
   - 也支持相对路径：`/welfare-backend`
+  - 单服务同源部署时可以留空，前端会默认请求当前域名下的 `/api`
 - `VITE_WELFARE_APP_BASE`：前端自身的部署子路径，默认 `/`
   - 部署在根路径时保持 `/`
   - 如果前端挂在子路径，例如 `https://example.com/welfare/`，则填写 `/welfare/`

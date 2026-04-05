@@ -1,0 +1,14 @@
+{
+  "name": "sub2api-welfare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build --prefix welfare-frontend && npm run build --prefix welfare-backend && node scripts/sync-frontend-dist.mjs",
+    "start": "node welfare-backend/dist/server.js",
+    "test": "npm run test --prefix welfare-backend && npm run test --prefix welfare-frontend",
+    "docker:build": "docker build -t sub2api-welfare .",
+    "docker:dev": "docker compose up --build",
+    "docker:dev:down": "docker compose down"
+  }
+}

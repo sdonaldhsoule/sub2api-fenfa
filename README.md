@@ -1,9 +1,10 @@
-# sub2api 福利站（独立部署版）
+# sub2api 福利站（Docker 单服务版）
 
-本仓库实现了一个**不改动 `sub2api` 源码**的福利站方案，包含：
+本仓库实现了一个**不改动 `sub2api` 源码**的福利站方案，并已补齐：
 
-- `welfare-backend`：签到业务、LinuxDo 登录、管理员配置、兑换码与补发
-- `welfare-frontend`：签到页与管理后台页
+- 开发期前后端分层：`welfare-backend` + `welfare-frontend`
+- 生产期单服务部署：前端构建产物由后端统一托管
+- Docker / Zeabur 友好的交付形态：`1 个应用服务 + 1 个 PostgreSQL`
 
 ## 当前版本补充
 
@@ -42,57 +43,85 @@
 └── .github/workflows
 ```
 
-## 快速开始
+## 本地开发
 
-### 1) 启动后端
+### 方式一：直接本地运行
+
+1) 启动后端
 
 ```bash
 cd welfare-backend
-cp .env.example .env
+copy .env.example .env
 npm install
 npm run dev
 ```
 
 > 后端启动时会自动执行数据库迁移，并按需写入管理员白名单种子。
 
-### 2) 启动前端
+2) 启动前端
 
 ```bash
 cd welfare-frontend
-cp .env.example .env
+copy .env.example .env
 npm install
 npm run dev
 ```
 
-## 测试与构建
-
-后端：
+### 方式二：Docker Compose 统一启动
 
 ```bash
-cd welfare-backend
-npm test
+copy .env.docker.example .env.docker
+docker compose up --build
+```
+
+默认端口：
+
+- 前端开发页：`http://localhost:5173`
+- 后端 API：`http://localhost:8787`
+- PostgreSQL：`localhost:5432`
+
+## 构建与运行
+
+根目录统一构建：
+
+```bash
 npm run build
 ```
 
-前端：
+构建完成后，前端静态文件会被同步到 `welfare-backend/dist/public`，可直接由后端统一托管。
+
+根目录启动生产包：
 
 ```bash
-cd welfare-frontend
-npm test
-npm run build
+npm start
 ```
 
-## 对接要点
+Docker 生产镜像：
+
+```bash
+docker build -t sub2api-welfare .
+```
+
+## 测试
+
+```bash
+npm test
+```
+
+## 部署要点
 
 - `SUB2API_BASE_URL`：你的 sub2api 服务地址
 - `SUB2API_ADMIN_API_KEY`：sub2api 后台管理员 API Key
 - `LINUXDO_*`：LinuxDo OAuth 应用参数，回调需指向  
-  `http(s)://<welfare-backend>/api/auth/linuxdo/callback`
-- `WELFARE_FRONTEND_URL` / `VITE_WELFARE_API_BASE`：如果前后端挂在子路径下，填写完整 base path
-- `VITE_WELFARE_APP_BASE`：如果前端不是部署在站点根路径，而是如 `/welfare/` 这样的子路径，请同步填写
+  `http(s)://<your-app>/api/auth/linuxdo/callback`
+- 单服务同源部署时：
+  - `WELFARE_FRONTEND_URL` 填应用根地址，如 `https://your-app.zeabur.app`
+  - `VITE_WELFARE_API_BASE` 可留空，前端会默认走同源 API
+- 本地 Docker 开发时，`docker-compose.yml` 会自动覆盖容器内的 `DATABASE_URL`、`WELFARE_FRONTEND_URL`、`WELFARE_CORS_ORIGINS` 和 `VITE_WELFARE_API_BASE`
 - 建议在生产环境的反向代理、网关或 WAF 层继续补充 CSP、HTTPS 和限流，仓库内实现主要提供应用层兜底保护
 
 ## 更多说明
 
 - 后端详细配置与接口：`welfare-backend/README.md`
 - 前端运行与页面说明：`welfare-frontend/README.md`
+- Zeabur Docker 部署说明：`ZEABUR_DEPLOY.md`
