@@ -17,6 +17,11 @@ const frontendDistDir = process.env.WELFARE_STATIC_DIR?.trim()
   ? path.resolve(process.env.WELFARE_STATIC_DIR)
   : path.resolve(currentDir, 'public');
 const frontendIndexFile = path.join(frontendDistDir, 'index.html');
+const frameAncestorsPolicy = [
+  "frame-ancestors",
+  "'self'",
+  config.SUB2API_ORIGIN
+].join(' ');
 
 export function createApp() {
   const app = express();
@@ -38,9 +43,9 @@ export function createApp() {
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
     res.set('X-Content-Type-Options', 'nosniff');
-    res.set('X-Frame-Options', 'DENY');
     res.set('Referrer-Policy', 'same-origin');
     res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.set('Content-Security-Policy', frameAncestorsPolicy);
     next();
   });
   app.use(express.json({ limit: '1mb' }));

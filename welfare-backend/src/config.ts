@@ -181,6 +181,7 @@ const adminMutationRateLimitWindowMs = parseDurationMs(
 parseDurationMs(raw.WELFARE_JWT_EXPIRES_IN, 'WELFARE_JWT_EXPIRES_IN');
 
 const frontendOrigin = normalizeOrigin(raw.WELFARE_FRONTEND_URL, 'WELFARE_FRONTEND_URL');
+const sub2apiOrigin = normalizeOrigin(raw.SUB2API_BASE_URL, 'SUB2API_BASE_URL');
 const configuredCorsOrigins = raw.WELFARE_CORS_ORIGINS.split(',')
   .map((item) => item.trim())
   .filter(Boolean)
@@ -246,7 +247,8 @@ export const config = {
   BOOTSTRAP_ADMIN_USER_IDS: bootstrapAdminUserIds,
   BOOTSTRAP_ADMIN_SUBJECTS: bootstrapAdminSubjects,
   BOOTSTRAP_ADMIN_EMAILS: bootstrapAdminEmails,
-  SUB2API_BASE_URL: raw.SUB2API_BASE_URL.replace(/\/+$/, '')
+  SUB2API_BASE_URL: raw.SUB2API_BASE_URL.replace(/\/+$/, ''),
+  SUB2API_ORIGIN: sub2apiOrigin
 };
 
 export type AppConfig = typeof config;

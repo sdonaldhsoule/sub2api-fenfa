@@ -88,7 +88,7 @@ npm test
 
 ## 安全说明
 
-- API 默认会返回基础安全响应头：`X-Frame-Options: DENY`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: same-origin`
+- API 默认会返回基础安全响应头：`Content-Security-Policy: frame-ancestors 'self' <sub2api-origin>`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: same-origin`
 - 当前仓库内的限流实现是**进程内存级**的，适合单实例或作为兜底保护；多实例生产环境建议把主限流放到反向代理、网关或 WAF
 - 如果服务部署在反向代理后，请正确配置真实客户端 IP 透传，否则基于 IP 的登录限流可能偏保守
 - 前端当前使用 localStorage 保存 Bearer token，生产部署时建议额外启用 CSP、限制第三方脚本来源，并避免把不可信 HTML 注入页面

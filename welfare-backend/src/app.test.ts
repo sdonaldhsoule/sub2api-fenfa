@@ -91,6 +91,20 @@ describe('createApp', () => {
     expect(response.headers['content-type']).toContain('javascript');
   });
 
+  it('页面响应会允许 sub2api 域名通过 iframe 嵌入', async () => {
+    const { createApp } = await import('./app.js');
+
+    const response = await request(createApp())
+      .get('/checkin')
+      .set('Accept', 'text/html')
+      .expect(200);
+
+    expect(response.headers['content-security-policy']).toBe(
+      "frame-ancestors 'self' https://example.com"
+    );
+    expect(response.headers['x-frame-options']).toBeUndefined();
+  });
+
   it('不允许的跨域 API 请求仍然会被拒绝', async () => {
     const { createApp } = await import('./app.js');
 

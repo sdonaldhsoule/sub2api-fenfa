@@ -44,6 +44,11 @@ BOOTSTRAP_ADMIN_SUBJECTS=
 
 前端在生产镜像内会直接编译为同源模式，一般**不需要**额外设置 `VITE_WELFARE_API_BASE`。
 
+说明：
+
+- 福利站页面的 iframe 嵌入白名单会自动跟随 `SUB2API_BASE_URL` 的域名
+- 如果你要在 sub2api 后台自定义菜单里嵌入福利站，`SUB2API_BASE_URL` 必须填你实际访问 sub2api 的那个 HTTPS 域名
+
 ## 3. 域名与回调
 
 - 对外只暴露一个域名
