@@ -98,6 +98,13 @@ const configSchema = z.object({
   SUB2API_ADMIN_API_KEY: z.string().min(1, 'SUB2API_ADMIN_API_KEY 不能为空'),
   SUB2API_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL: z.string().default('6h'),
+  WELFARE_MONITOR_SCAN_INTERVAL: z.string().default('5m'),
+  WELFARE_MONITOR_SNAPSHOT_INTERVAL: z.string().default('1h'),
+  WELFARE_MONITOR_OBSERVE_IP_THRESHOLD: z.coerce.number().int().positive().default(4),
+  WELFARE_MONITOR_BLOCK_IP_THRESHOLD: z.coerce.number().int().positive().default(6),
+  WELFARE_MONITOR_LOCK_DURATION: z.string().default('24h'),
+  WELFARE_MONITOR_LIVE_CACHE_TTL: z.string().default('30s'),
+  WELFARE_MONITOR_SNAPSHOT_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   WELFARE_RATE_LIMIT_AUTH_WINDOW: z.string().default('10m'),
   WELFARE_RATE_LIMIT_AUTH_LIMIT: z.coerce.number().int().positive().default(20),
   WELFARE_RATE_LIMIT_CHECKIN_WINDOW: z.string().default('5m'),
@@ -138,6 +145,22 @@ const raw = parsed.data;
 const revokedTokenCleanupIntervalMs = parseDurationMs(
   raw.WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL,
   'WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL'
+);
+const monitorScanIntervalMs = parseDurationMs(
+  raw.WELFARE_MONITOR_SCAN_INTERVAL,
+  'WELFARE_MONITOR_SCAN_INTERVAL'
+);
+const monitorSnapshotIntervalMs = parseDurationMs(
+  raw.WELFARE_MONITOR_SNAPSHOT_INTERVAL,
+  'WELFARE_MONITOR_SNAPSHOT_INTERVAL'
+);
+const monitorLockDurationMs = parseDurationMs(
+  raw.WELFARE_MONITOR_LOCK_DURATION,
+  'WELFARE_MONITOR_LOCK_DURATION'
+);
+const monitorLiveCacheTtlMs = parseDurationMs(
+  raw.WELFARE_MONITOR_LIVE_CACHE_TTL,
+  'WELFARE_MONITOR_LIVE_CACHE_TTL'
 );
 const authRateLimitWindowMs = parseDurationMs(
   raw.WELFARE_RATE_LIMIT_AUTH_WINDOW,
@@ -200,12 +223,22 @@ if (invalidBootstrapEmail) {
   );
 }
 
+if (raw.WELFARE_MONITOR_BLOCK_IP_THRESHOLD <= raw.WELFARE_MONITOR_OBSERVE_IP_THRESHOLD) {
+  throw new Error(
+    '环境变量校验失败：WELFARE_MONITOR_BLOCK_IP_THRESHOLD 必须大于 WELFARE_MONITOR_OBSERVE_IP_THRESHOLD'
+  );
+}
+
 export const config = {
   ...raw,
   WELFARE_FRONTEND_ORIGIN: frontendOrigin,
   WELFARE_CORS_ORIGINS:
     configuredCorsOrigins.length > 0 ? configuredCorsOrigins : [frontendOrigin],
   WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL_MS: revokedTokenCleanupIntervalMs,
+  WELFARE_MONITOR_SCAN_INTERVAL_MS: monitorScanIntervalMs,
+  WELFARE_MONITOR_SNAPSHOT_INTERVAL_MS: monitorSnapshotIntervalMs,
+  WELFARE_MONITOR_LOCK_DURATION_MS: monitorLockDurationMs,
+  WELFARE_MONITOR_LIVE_CACHE_TTL_MS: monitorLiveCacheTtlMs,
   WELFARE_RATE_LIMIT_AUTH_WINDOW_MS: authRateLimitWindowMs,
   WELFARE_RATE_LIMIT_CHECKIN_WINDOW_MS: checkinRateLimitWindowMs,
   WELFARE_RATE_LIMIT_REDEEM_WINDOW_MS: redeemRateLimitWindowMs,

@@ -44,12 +44,20 @@ describe('config', () => {
   it('accepts valid duration strings', async () => {
     process.env.WELFARE_JWT_EXPIRES_IN = '1.5h';
     process.env.WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL = '30m';
+    process.env.WELFARE_MONITOR_SCAN_INTERVAL = '3m';
+    process.env.WELFARE_MONITOR_SNAPSHOT_INTERVAL = '45m';
+    process.env.WELFARE_MONITOR_LOCK_DURATION = '36h';
+    process.env.WELFARE_MONITOR_LIVE_CACHE_TTL = '45s';
     process.env.WELFARE_RATE_LIMIT_AUTH_WINDOW = '15m';
 
     const { config } = await import('./config.js');
 
     expect(config.WELFARE_JWT_EXPIRES_IN).toBe('1.5h');
     expect(config.WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL_MS).toBe(1_800_000);
+    expect(config.WELFARE_MONITOR_SCAN_INTERVAL_MS).toBe(180_000);
+    expect(config.WELFARE_MONITOR_SNAPSHOT_INTERVAL_MS).toBe(2_700_000);
+    expect(config.WELFARE_MONITOR_LOCK_DURATION_MS).toBe(129_600_000);
+    expect(config.WELFARE_MONITOR_LIVE_CACHE_TTL_MS).toBe(45_000);
     expect(config.WELFARE_RATE_LIMIT_AUTH_WINDOW_MS).toBe(900_000);
   });
 
@@ -72,6 +80,15 @@ describe('config', () => {
 
     await expect(import('./config.js')).rejects.toThrow(
       'BOOTSTRAP_ADMIN_EMAILS 包含非法邮箱'
+    );
+  });
+
+  it('rejects invalid monitoring threshold combinations', async () => {
+    process.env.WELFARE_MONITOR_OBSERVE_IP_THRESHOLD = '6';
+    process.env.WELFARE_MONITOR_BLOCK_IP_THRESHOLD = '6';
+
+    await expect(import('./config.js')).rejects.toThrow(
+      'WELFARE_MONITOR_BLOCK_IP_THRESHOLD 必须大于 WELFARE_MONITOR_OBSERVE_IP_THRESHOLD'
     );
   });
 });

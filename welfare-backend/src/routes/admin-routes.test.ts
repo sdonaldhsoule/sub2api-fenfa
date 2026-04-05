@@ -99,6 +99,13 @@ vi.mock('../services/user-cleanup-service.js', () => ({
   userCleanupService: mockUserCleanupService
 }));
 
+vi.mock('./admin-monitoring-routes.js', async () => {
+  const express = await import('express');
+  return {
+    adminMonitoringRouter: express.Router()
+  };
+});
+
 async function createTestApp() {
   const { adminRouter } = await import('./admin-routes.js');
   const app = express();

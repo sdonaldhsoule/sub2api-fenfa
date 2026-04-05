@@ -7,6 +7,7 @@ import { AdminBlindboxPanel } from '../components/AdminBlindboxPanel';
 import { AdminCheckinsPanel } from '../components/AdminCheckinsPanel';
 import { AdminDashboardOverview } from '../components/AdminDashboardOverview';
 import { AdminDistributionDetectionPanel } from '../components/AdminDistributionDetectionPanel';
+import { AdminMonitoringConsole } from '../components/AdminMonitoringConsole';
 import { AdminResetRecordsPanel } from '../components/AdminResetRecordsPanel';
 import { AdminRedeemCodesPanel } from '../components/AdminRedeemCodesPanel';
 import { AdminRedeemClaimsPanel } from '../components/AdminRedeemClaimsPanel';
@@ -30,6 +31,7 @@ import { motion } from 'framer-motion';
 import { pageVariants } from '../lib/animations';
 
 type AdminSection =
+  | 'monitoring'
   | 'overview'
   | 'distributionDetection'
   | 'checkins'
@@ -59,6 +61,13 @@ const sections: Array<{
   icon: 'bolt' | 'chart' | 'grid' | 'ticket' | 'users';
 }> = [
   {
+    id: 'monitoring',
+    label: '监控主控台',
+    title: '监控主控台',
+    description: '先看共享 IP、活跃用户、风险事件和人工处置。',
+    icon: 'chart'
+  },
+  {
     id: 'overview',
     label: '总览',
     title: '运营总览',
@@ -67,9 +76,9 @@ const sections: Array<{
   },
   {
     id: 'distributionDetection',
-    label: '分发检测',
-    title: '分发风控台',
-    description: '巡检异常分发、查看证据并执行人工恢复。',
+    label: '风险事件',
+    title: '风险事件档案',
+    description: '查看详细风险证据、锁定窗口和恢复记录。',
     icon: 'chart'
   },
   {
@@ -119,7 +128,7 @@ const sections: Array<{
 export function AdminPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [activeSection, setActiveSection] = useState<AdminSection>('overview');
+  const [activeSection, setActiveSection] = useState<AdminSection>('monitoring');
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [dailyRewardMinInput, setDailyRewardMinInput] = useState('');
   const [dailyRewardMaxInput, setDailyRewardMaxInput] = useState('');
@@ -144,6 +153,7 @@ export function AdminPage() {
   const [retryingId, setRetryingId] = useState<number | null>(null);
   const [batchRetrying, setBatchRetrying] = useState(false);
   const [batchRetryProgress, setBatchRetryProgress] = useState({ done: 0, total: 0, successCount: 0, failCount: 0 });
+  const [monitoringRefreshSignal, setMonitoringRefreshSignal] = useState(0);
 
   function setMessage(msg: string) {
     if (msg) toast.success(msg);
@@ -562,7 +572,9 @@ export function AdminPage() {
               <Icon name={item.icon} size={16} />
               <span>{item.label}</span>
                 <span className="admin-nav-badge">
-                  {item.id === 'checkins'
+                  {item.id === 'monitoring'
+                    ? (riskOverview?.open_event_count ?? 0) + (riskOverview?.pending_release_count ?? 0)
+                    : item.id === 'checkins'
                     ? stats?.total_checkins ?? 0
                   : item.id === 'distributionDetection'
                     ? (riskOverview?.open_event_count ?? 0) + (riskOverview?.observe_count_1h ?? 0)
@@ -611,13 +623,31 @@ export function AdminPage() {
             <p>{currentSection.description}</p>
           </div>
           <div className="admin-header-actions">
-            <button className="button ghost" onClick={() => void loadOverview()}>
+            <button
+              className="button ghost"
+              onClick={() => {
+                if (activeSection === 'monitoring') {
+                  setMonitoringRefreshSignal((current) => current + 1);
+                  return;
+                }
+
+                void loadOverview();
+              }}
+            >
               <Icon name="bolt" size={16} /> 刷新
             </button>
           </div>
         </header>
         
         <div className="admin-page-body">
+          {activeSection === 'monitoring' && (
+            <AdminMonitoringConsole
+              refreshSignal={monitoringRefreshSignal}
+              onUnauthorized={redirectToLogin}
+              onError={setError}
+              onSuccess={setMessage}
+            />
+          )}
 
           {activeSection === 'overview' && (
             <AdminDashboardOverview

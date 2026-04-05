@@ -6,6 +6,7 @@ import {
   distributionDetectionService,
   DISTRIBUTION_SCAN_INTERVAL_MS
 } from './services/distribution-detection-service.js';
+import { monitoringService } from './services/monitoring-service.js';
 import { sub2apiClient } from './services/sub2api-client.js';
 import { welfareRepository } from './services/checkin-service.js';
 import { sessionMaintenanceService } from './services/session-maintenance-service.js';
@@ -107,6 +108,7 @@ async function main() {
     config.WELFARE_REVOKED_TOKEN_CLEANUP_INTERVAL_MS
   );
   distributionDetectionService.startScanLoop(DISTRIBUTION_SCAN_INTERVAL_MS);
+  monitoringService.startSnapshotLoop(config.WELFARE_MONITOR_SNAPSHOT_INTERVAL_MS);
 
   const app = createApp();
   app.listen(config.PORT, () => {

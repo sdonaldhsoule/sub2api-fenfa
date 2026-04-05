@@ -27,6 +27,13 @@ export interface UserSecurityState {
 export type RiskEventStatus = 'active' | 'pending_release' | 'released';
 export type RiskSyncStatus = 'pending' | 'success' | 'failed';
 export type RiskScanStateStatus = 'idle' | 'running' | 'success' | 'failed';
+export type MonitoringActionType =
+  | 'disable_user'
+  | 'enable_user'
+  | 'release_risk_event'
+  | 'run_risk_scan';
+export type MonitoringActionTargetType = 'user' | 'risk_event' | 'scan';
+export type MonitoringActionResultStatus = 'success' | 'failed' | 'blocked';
 
 export interface RiskEvent {
   id: number;
@@ -69,6 +76,36 @@ export interface RiskScanState {
   scannedUserCount: number;
   hitUserCount: number;
   updatedAt: string;
+}
+
+export interface MonitoringSnapshot {
+  id: number;
+  snapshotAt: string;
+  requestCount24h: number;
+  activeUserCount24h: number;
+  uniqueIpCount24h: number;
+  observeUserCount1h: number;
+  blockedUserCount: number;
+  pendingReleaseCount: number;
+  sharedIpCount1h: number;
+  sharedIpCount24h: number;
+  createdAt: string;
+}
+
+export interface MonitoringAction {
+  id: number;
+  actionType: MonitoringActionType;
+  targetType: MonitoringActionTargetType;
+  targetId: number | null;
+  targetLabel: string;
+  operatorSub2apiUserId: number;
+  operatorEmail: string;
+  operatorUsername: string;
+  reason: string;
+  resultStatus: MonitoringActionResultStatus;
+  detail: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
 export type CheckinMode = 'normal' | 'blindbox';

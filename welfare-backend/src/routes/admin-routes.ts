@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../config.js';
+import { adminMonitoringRouter } from './admin-monitoring-routes.js';
 import { requireAuth } from '../middleware/auth-middleware.js';
 import {
   createRateLimitMiddleware,
@@ -534,6 +535,7 @@ adminRouter.use((req, res, next) => {
 
   next();
 });
+adminRouter.use('/monitoring', adminMonitoringRouter);
 
 adminRouter.get('/overview', asyncHandler(async (_req, res) => {
   const [settings, stats, whitelist] = await Promise.all([

@@ -6,6 +6,14 @@ import type {
   AdminCheckinList,
   AdminCheckinQuery,
   AdminCheckinRetryResult,
+  AdminMonitoringActionList,
+  AdminMonitoringActionType,
+  AdminMonitoringIpList,
+  AdminMonitoringIpUsersResponse,
+  AdminMonitoringOverview,
+  AdminMonitoringUserIpsResponse,
+  AdminMonitoringUserList,
+  AdminMonitoringUserStatusResult,
   AdminOverview,
   AdminRiskEventList,
   AdminRiskEventQuery,
@@ -202,6 +210,7 @@ export const api = {
   getRedeemHistory: () => request<RedeemHistoryItem[]>('/api/redeem-codes/history'),
   getAdminOverview: () => request<AdminOverview>('/api/admin/overview'),
   getAdminRiskOverview: () => request<AdminRiskOverview>('/api/admin/risk-events/overview'),
+  getAdminMonitoringOverview: () => request<AdminMonitoringOverview>('/api/admin/monitoring/overview'),
   getAdminSettings: () => request<AdminSettings>('/api/admin/settings'),
   updateAdminSettings: (payload: Partial<AdminSettings>) =>
     request<AdminSettings>('/api/admin/settings', {
@@ -220,6 +229,60 @@ export const api = {
     const suffix = query.toString();
     return request<AdminCheckinList>(
       `/api/admin/checkins${suffix ? `?${suffix}` : ''}`
+    );
+  },
+  listAdminMonitoringIps: (params: {
+    page?: number;
+    page_size?: number;
+  } = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.page_size) query.set('page_size', String(params.page_size));
+    const suffix = query.toString();
+    return request<AdminMonitoringIpList>(
+      `/api/admin/monitoring/ips${suffix ? `?${suffix}` : ''}`
+    );
+  },
+  getAdminMonitoringIpUsers: (ipAddress: string) =>
+    request<AdminMonitoringIpUsersResponse>(
+      `/api/admin/monitoring/ips/${encodeURIComponent(ipAddress)}/users`
+    ),
+  listAdminMonitoringUsers: (params: {
+    page?: number;
+    page_size?: number;
+  } = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.page_size) query.set('page_size', String(params.page_size));
+    const suffix = query.toString();
+    return request<AdminMonitoringUserList>(
+      `/api/admin/monitoring/users${suffix ? `?${suffix}` : ''}`
+    );
+  },
+  getAdminMonitoringUserIps: (userId: number) =>
+    request<AdminMonitoringUserIpsResponse>(`/api/admin/monitoring/users/${userId}/ips`),
+  disableAdminMonitoringUser: (userId: number, payload: { reason?: string } = {}) =>
+    request<AdminMonitoringUserStatusResult>(`/api/admin/monitoring/users/${userId}/disable`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+  enableAdminMonitoringUser: (userId: number, payload: { reason?: string } = {}) =>
+    request<AdminMonitoringUserStatusResult>(`/api/admin/monitoring/users/${userId}/enable`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+  listAdminMonitoringActions: (params: {
+    page?: number;
+    page_size?: number;
+    action_type?: AdminMonitoringActionType;
+  } = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.page_size) query.set('page_size', String(params.page_size));
+    if (params.action_type) query.set('action_type', params.action_type);
+    const suffix = query.toString();
+    return request<AdminMonitoringActionList>(
+      `/api/admin/monitoring/actions${suffix ? `?${suffix}` : ''}`
     );
   },
   retryAdminCheckin: (id: number) =>
@@ -262,6 +325,18 @@ export const api = {
       `/api/admin/risk-events${suffix ? `?${suffix}` : ''}`
     );
   },
+  getAdminMonitoringRiskOverview: () =>
+    request<AdminRiskOverview>('/api/admin/monitoring/risk-events/overview'),
+  listAdminMonitoringRiskEvents: (params: AdminRiskEventQuery = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.page_size) query.set('page_size', String(params.page_size));
+    if (params.status) query.set('status', params.status);
+    const suffix = query.toString();
+    return request<AdminRiskEventList>(
+      `/api/admin/monitoring/risk-events${suffix ? `?${suffix}` : ''}`
+    );
+  },
   listAdminRiskObservations: (params: {
     page?: number;
     page_size?: number;
@@ -274,12 +349,33 @@ export const api = {
       `/api/admin/risk-events/observations${suffix ? `?${suffix}` : ''}`
     );
   },
+  listAdminMonitoringRiskObservations: (params: {
+    page?: number;
+    page_size?: number;
+  } = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.page_size) query.set('page_size', String(params.page_size));
+    const suffix = query.toString();
+    return request<AdminRiskObservationList>(
+      `/api/admin/monitoring/risk-events/observations${suffix ? `?${suffix}` : ''}`
+    );
+  },
   scanAdminRiskEvents: () =>
     request<AdminRiskScanResult>('/api/admin/risk-events/scan', {
       method: 'POST'
     }),
+  scanAdminMonitoringRiskEvents: () =>
+    request<AdminRiskScanResult>('/api/admin/monitoring/risk-events/scan', {
+      method: 'POST'
+    }),
   releaseAdminRiskEvent: (id: number, payload: { reason?: string } = {}) =>
     request<{ item: AdminRiskEventList['items'][number] }>(`/api/admin/risk-events/${id}/release`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+  releaseAdminMonitoringRiskEvent: (id: number, payload: { reason?: string } = {}) =>
+    request<{ item: AdminRiskEventList['items'][number] }>(`/api/admin/monitoring/risk-events/${id}/release`, {
       method: 'POST',
       body: JSON.stringify(payload)
     }),

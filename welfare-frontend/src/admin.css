@@ -389,3 +389,566 @@
   background: white;
   border: 1px solid var(--panel-border);
 }
+
+.monitoring-console {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.monitoring-hero-panel,
+.monitoring-timeline-panel,
+.monitoring-board-panel,
+.monitoring-risk-panel,
+.monitoring-actions-panel {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, rgba(251, 191, 36, 0.12), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(248, 113, 113, 0.08), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+}
+
+.monitoring-hero-shell,
+.monitoring-board-grid,
+.monitoring-risk-grid,
+.monitoring-timeline-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.monitoring-hero-shell {
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.92fr);
+}
+
+.monitoring-board-grid,
+.monitoring-timeline-grid,
+.monitoring-risk-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.monitoring-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8b5e1a;
+}
+
+.monitoring-hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.monitoring-hero-title,
+.monitoring-panel-title {
+  margin: 0;
+  color: #111827;
+  letter-spacing: -0.05em;
+}
+
+.monitoring-hero-title {
+  font-size: clamp(34px, 4vw, 52px);
+  line-height: 0.96;
+}
+
+.monitoring-panel-title {
+  font-size: clamp(24px, 2.6vw, 32px);
+  line-height: 1;
+}
+
+.monitoring-hero-description,
+.monitoring-panel-head p,
+.monitoring-side-caption,
+.monitoring-inline-note p,
+.monitoring-action-highlight-item p,
+.monitoring-ledger-main p {
+  margin: 0;
+  color: #5b6473;
+  line-height: 1.7;
+}
+
+.monitoring-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.monitoring-metric-card,
+.monitoring-side-card,
+.monitoring-card-shell,
+.monitoring-detail-card {
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 20px 34px -28px rgba(15, 23, 42, 0.4);
+}
+
+.monitoring-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  position: relative;
+}
+
+.monitoring-metric-card::after {
+  content: '';
+  position: absolute;
+  inset: auto 18px 0 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.1));
+}
+
+.monitoring-metric-card.tone-warning::after {
+  background: linear-gradient(90deg, rgba(217, 119, 6, 0.95), rgba(251, 191, 36, 0.25));
+}
+
+.monitoring-metric-card.tone-danger::after {
+  background: linear-gradient(90deg, rgba(220, 38, 38, 0.95), rgba(248, 113, 113, 0.25));
+}
+
+.monitoring-metric-head,
+.monitoring-side-head,
+.monitoring-card-head,
+.monitoring-detail-head,
+.monitoring-detail-toolbar,
+.monitoring-risk-card-head,
+.monitoring-risk-foot,
+.monitoring-ledger-top,
+.monitoring-panel-head-inline,
+.monitoring-action-highlight-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.monitoring-metric-label,
+.monitoring-card-head span {
+  font-family: 'IBM Plex Mono', var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7a8494;
+}
+
+.monitoring-metric-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.06);
+  color: #111827;
+}
+
+.monitoring-metric-value {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 4vw, 50px);
+  line-height: 0.92;
+  color: #111827;
+}
+
+.monitoring-metric-card small {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.monitoring-threshold-strip,
+.monitoring-risk-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.monitoring-threshold-pill {
+  border-radius: 999px;
+  padding: 9px 14px;
+  background: rgba(255, 247, 237, 0.92);
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.monitoring-hero-side,
+.monitoring-side-list,
+.monitoring-related-list,
+.monitoring-risk-list,
+.monitoring-ledger-list,
+.monitoring-action-highlight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.monitoring-side-card,
+.monitoring-card-shell,
+.monitoring-detail-card {
+  padding: 18px;
+}
+
+.monitoring-side-head strong,
+.monitoring-card-head strong,
+.monitoring-detail-head h4 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1;
+  color: #111827;
+  margin: 0;
+}
+
+.monitoring-side-list {
+  gap: 10px;
+}
+
+.monitoring-side-row,
+.monitoring-detail-user-meta,
+.monitoring-risk-facts,
+.monitoring-spark-meta,
+.monitoring-related-copy,
+.monitoring-ledger-main,
+.monitoring-risk-identity,
+.monitoring-related-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.monitoring-side-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.monitoring-side-row span,
+.monitoring-detail-stat-grid span,
+.monitoring-risk-facts span,
+.monitoring-spark-meta span,
+.monitoring-related-copy span,
+.monitoring-detail-user-meta span,
+.monitoring-ledger-main span,
+.monitoring-risk-identity span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.monitoring-inline-note {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 251, 235, 0.92);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.monitoring-side-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.monitoring-panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.monitoring-card-shell {
+  min-height: 100%;
+}
+
+.monitoring-spark-chart {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+  gap: 12px;
+  align-items: end;
+  min-height: 220px;
+}
+
+.monitoring-spark-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.monitoring-spark-stack {
+  min-height: 180px;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+}
+
+.monitoring-spark-bar {
+  width: 16px;
+  border-radius: 999px 999px 8px 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.monitoring-spark-bar.traffic {
+  background: linear-gradient(180deg, #111827, #334155);
+}
+
+.monitoring-spark-bar.risk {
+  background: linear-gradient(180deg, #f59e0b, #ea580c);
+}
+
+.monitoring-spark-meta {
+  align-items: center;
+  text-align: center;
+}
+
+.monitoring-spark-meta strong {
+  font-size: 13px;
+  color: #111827;
+}
+
+.monitoring-action-highlight-item,
+.monitoring-risk-card,
+.monitoring-ledger-row {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.monitoring-action-highlight-item strong,
+.monitoring-risk-card strong,
+.monitoring-ledger-row strong,
+.monitoring-related-copy strong,
+.monitoring-rank-main strong,
+.monitoring-detail-user-meta strong {
+  color: #111827;
+  font-size: 15px;
+}
+
+.monitoring-action-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.08);
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.monitoring-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.monitoring-rank-row,
+.monitoring-related-row {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(248, 250, 252, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.monitoring-rank-row {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.monitoring-rank-row:hover,
+.monitoring-rank-row.active,
+.monitoring-related-row:hover {
+  border-color: rgba(245, 158, 11, 0.34);
+  box-shadow: 0 16px 28px -28px rgba(245, 158, 11, 0.85);
+  transform: translateY(-1px);
+}
+
+.monitoring-rank-main,
+.monitoring-related-copy {
+  min-width: 0;
+}
+
+.monitoring-rank-side,
+.monitoring-related-actions,
+.monitoring-risk-statuses,
+.monitoring-ledger-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.monitoring-detail-card {
+  margin-top: 10px;
+}
+
+.monitoring-detail-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.monitoring-detail-stat-grid > div {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.monitoring-detail-stat-grid strong {
+  display: block;
+  margin-top: 4px;
+  color: #111827;
+  font-size: 16px;
+}
+
+.monitoring-identity-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  flex: 0 0 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.18), rgba(251, 191, 36, 0.08));
+  color: #9a3412;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.monitoring-related-row.compact {
+  cursor: default;
+}
+
+.monitoring-related-row.compact:hover {
+  transform: none;
+}
+
+.monitoring-chip-danger {
+  color: #b91c1c;
+  background: rgba(254, 226, 226, 0.92);
+  border-color: rgba(248, 113, 113, 0.32);
+}
+
+.monitoring-filter-field {
+  min-width: 180px;
+}
+
+.monitoring-ip-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.monitoring-ip-pill {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: rgba(255, 247, 237, 0.92);
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.monitoring-risk-card.observation {
+  background: rgba(255, 251, 235, 0.74);
+}
+
+.monitoring-ledger-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.monitoring-pagination-bar {
+  margin-top: 16px;
+}
+
+@media (max-width: 1180px) {
+  .monitoring-hero-shell,
+  .monitoring-board-grid,
+  .monitoring-risk-grid,
+  .monitoring-timeline-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 920px) {
+  .monitoring-metric-grid,
+  .monitoring-detail-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .monitoring-hero-panel,
+  .monitoring-timeline-panel,
+  .monitoring-board-panel,
+  .monitoring-risk-panel,
+  .monitoring-actions-panel {
+    border-radius: 18px;
+  }
+
+  .monitoring-panel-head,
+  .monitoring-panel-head-inline,
+  .monitoring-side-head,
+  .monitoring-detail-head,
+  .monitoring-detail-toolbar,
+  .monitoring-risk-card-head,
+  .monitoring-risk-foot,
+  .monitoring-ledger-row,
+  .monitoring-rank-row,
+  .monitoring-related-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .monitoring-rank-side,
+  .monitoring-related-actions,
+  .monitoring-risk-statuses,
+  .monitoring-ledger-side {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .monitoring-metric-grid,
+  .monitoring-detail-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .monitoring-side-card,
+  .monitoring-card-shell,
+  .monitoring-detail-card {
+    padding: 16px;
+  }
+
+  .monitoring-spark-chart {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

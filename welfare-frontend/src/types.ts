@@ -252,6 +252,184 @@ export interface AdminRiskScanResult {
   last_scan: AdminRiskScanState;
 }
 
+export type AdminMonitoringActionType =
+  | 'disable_user'
+  | 'enable_user'
+  | 'release_risk_event'
+  | 'run_risk_scan';
+
+export interface AdminMonitoringSnapshotPoint {
+  snapshot_at: string;
+  request_count_24h: number;
+  active_user_count_24h: number;
+  unique_ip_count_24h: number;
+  observe_user_count_1h: number;
+  blocked_user_count: number;
+  pending_release_count: number;
+  shared_ip_count_1h: number;
+  shared_ip_count_24h: number;
+}
+
+export interface AdminMonitoringActionItem {
+  id: number;
+  action_type: AdminMonitoringActionType;
+  target_type: 'user' | 'risk_event' | 'scan';
+  target_id: number | null;
+  target_label: string;
+  operator_sub2api_user_id: number;
+  operator_email: string;
+  operator_username: string;
+  reason: string;
+  result_status: 'success' | 'failed';
+  detail: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AdminMonitoringActionList {
+  items: AdminMonitoringActionItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+export interface AdminMonitoringOverview {
+  generated_at: string;
+  thresholds: {
+    observe_ip_count: number;
+    block_ip_count: number;
+    lock_duration_ms: number;
+    live_cache_ttl_ms: number;
+    snapshot_interval_ms: number;
+  };
+  summary: {
+    request_count_24h: number;
+    active_user_count_24h: number;
+    unique_ip_count_24h: number;
+    observe_user_count_1h: number;
+    blocked_user_count: number;
+    pending_release_count: number;
+    shared_ip_count_1h: number;
+    shared_ip_count_24h: number;
+  };
+  windows: {
+    observe_user_count_1h: number;
+    observe_user_count_24h: number;
+    shared_user_count_24h: number;
+    shared_ip_count_1h: number;
+    shared_ip_count_24h: number;
+  };
+  last_scan: AdminRiskScanState;
+  snapshot_points: AdminMonitoringSnapshotPoint[];
+  recent_actions: AdminMonitoringActionItem[];
+}
+
+export interface AdminMonitoringIpSampleUser {
+  sub2api_user_id: number;
+  sub2api_username: string;
+  sub2api_email: string;
+}
+
+export interface AdminMonitoringIpItem {
+  ip_address: string;
+  request_count_1h: number;
+  request_count_24h: number;
+  user_count_1h: number;
+  user_count_24h: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  risk_level: 'normal' | 'observe' | 'block';
+  sample_users: AdminMonitoringIpSampleUser[];
+}
+
+export interface AdminMonitoringIpList {
+  items: AdminMonitoringIpItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+  generated_at: string;
+}
+
+export interface AdminMonitoringIpUserItem {
+  sub2api_user_id: number;
+  sub2api_email: string;
+  sub2api_username: string;
+  linuxdo_subject: string | null;
+  sub2api_role: 'admin' | 'user';
+  sub2api_status: string;
+  is_admin_protected: boolean;
+  risk_status: AdminRiskEvent['status'] | null;
+  risk_event_id: number | null;
+  request_count_1h: number;
+  request_count_24h: number;
+  unique_ip_count_1h: number;
+  unique_ip_count_24h: number;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface AdminMonitoringIpUsersResponse {
+  ip: AdminMonitoringIpItem;
+  items: AdminMonitoringIpUserItem[];
+  total: number;
+  generated_at: string;
+}
+
+export interface AdminMonitoringUserItem {
+  sub2api_user_id: number;
+  sub2api_email: string;
+  sub2api_username: string;
+  linuxdo_subject: string | null;
+  sub2api_role: 'admin' | 'user';
+  sub2api_status: string;
+  is_admin_protected: boolean;
+  risk_status: AdminRiskEvent['status'] | null;
+  risk_event_id: number | null;
+  request_count_1h: number;
+  request_count_24h: number;
+  unique_ip_count_1h: number;
+  unique_ip_count_24h: number;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface AdminMonitoringUserList {
+  items: AdminMonitoringUserItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+  generated_at: string;
+}
+
+export interface AdminMonitoringUserIpItem {
+  ip_address: string;
+  request_count_1h: number;
+  request_count_24h: number;
+  shared_user_count_24h: number;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface AdminMonitoringUserIpsResponse {
+  user: AdminMonitoringUserItem;
+  items: AdminMonitoringUserIpItem[];
+  total: number;
+  generated_at: string;
+}
+
+export interface AdminMonitoringUserStatusResult {
+  item: {
+    id: number;
+    email: string;
+    username: string;
+    role: 'admin' | 'user';
+    status: string;
+  };
+}
+
 export interface AdminCheckinItem {
   id: number;
   sub2apiUserId: number;

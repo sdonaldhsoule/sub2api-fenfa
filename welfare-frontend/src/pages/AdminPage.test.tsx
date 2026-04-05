@@ -38,6 +38,10 @@ vi.mock('../components/AdminDashboardOverview', () => ({
   )
 }));
 
+vi.mock('../components/AdminMonitoringConsole', () => ({
+  AdminMonitoringConsole: () => <div>监控主控台模块</div>
+}));
+
 vi.mock('../components/AdminCheckinsPanel', () => ({
   AdminCheckinsPanel: () => <div>签到模块</div>
 }));
@@ -154,15 +158,15 @@ describe('AdminPage dashboard', () => {
     });
   });
 
-  it('默认显示总览分区', async () => {
+  it('默认显示监控主控台分区', async () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AdminPage />
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('总览模块')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '运营总览' })).toBeInTheDocument();
+    expect(await screen.findByText('监控主控台模块')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '监控主控台' })).toBeInTheDocument();
   });
 
   it('可以从总览切换到兑换码分区', async () => {
@@ -172,6 +176,7 @@ describe('AdminPage dashboard', () => {
       </MemoryRouter>
     );
 
+    fireEvent.click(await screen.findByRole('button', { name: /总览/i }));
     fireEvent.click(await screen.findByText('前往兑换码'));
     expect(await screen.findByText('兑换码模块')).toBeInTheDocument();
   });
@@ -187,14 +192,14 @@ describe('AdminPage dashboard', () => {
     expect(await screen.findByText('用户清理模块')).toBeInTheDocument();
   });
 
-  it('可以切换到分发检测分区', async () => {
+  it('可以切换到风险事件分区', async () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AdminPage />
       </MemoryRouter>
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: /分发检测/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /风险事件/i }));
     expect(await screen.findByText('分发检测模块')).toBeInTheDocument();
   });
 });

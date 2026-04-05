@@ -1,3 +1,4 @@
+import { config } from '../config.js';
 import { pool } from '../db.js';
 import { RiskRepository, type SaveRiskEventInput } from '../repositories/risk-repository.js';
 import { WelfareRepository } from '../repositories/welfare-repository.js';
@@ -12,11 +13,11 @@ import {
 } from './sub2api-client.js';
 
 export const DISTRIBUTION_WINDOW_MS = 60 * 60 * 1000;
-export const DISTRIBUTION_OBSERVE_IP_THRESHOLD = 4;
-export const DISTRIBUTION_BAN_IP_THRESHOLD = 6;
+export const DISTRIBUTION_OBSERVE_IP_THRESHOLD = config.WELFARE_MONITOR_OBSERVE_IP_THRESHOLD;
+export const DISTRIBUTION_BAN_IP_THRESHOLD = config.WELFARE_MONITOR_BLOCK_IP_THRESHOLD;
 export const DISTRIBUTION_IP_THRESHOLD = DISTRIBUTION_BAN_IP_THRESHOLD;
-export const DISTRIBUTION_MINIMUM_LOCK_MS = 24 * 60 * 60 * 1000;
-export const DISTRIBUTION_SCAN_INTERVAL_MS = 5 * 60 * 1000;
+export const DISTRIBUTION_MINIMUM_LOCK_MS = config.WELFARE_MONITOR_LOCK_DURATION_MS;
+export const DISTRIBUTION_SCAN_INTERVAL_MS = config.WELFARE_MONITOR_SCAN_INTERVAL_MS;
 export const DISTRIBUTION_WINDOW_STATS = {
   window1h: 1 * 60 * 60 * 1000,
   window3h: 3 * 60 * 60 * 1000,
